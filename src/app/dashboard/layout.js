@@ -11,7 +11,7 @@ export default function DashboardLayout({ children }) {
        
       <Sidebar logout={logout} />
  
-      <main className="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden"> 
+      <main className="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden bg-white"> 
         <div className="flex-1 overflow-y-auto pb-24 md:pb-8 p-4 md:p-8">
           {children}
         </div>

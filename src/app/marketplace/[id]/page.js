@@ -15,23 +15,33 @@ export default function ProductDetail() {
   const { user, supabase } = useAuth()
   
   const [product, setProduct] = useState(null)
+  const [farmLogs, setFarmLogs] = useState([])  
   const [loading, setLoading] = useState(true)
   const [isProcessing, setIsProcessing] = useState(false)
   const [buyAmount, setBuyAmount] = useState(1)
 
   useEffect(() => {
     const fetchDetail = async () => {
-      try {
-        const { data, error } = await supabase
+      try { 
+        const { data: productData, error: pError } = await supabase
           .from('products')
           .select('*, profiles(*)') 
           .eq('id', id)
           .single()
 
-        if (error) throw error
-        setProduct(data)
+        if (pError) throw pError
+        setProduct(productData)
+ 
+        const { data: logsData, error: lError } = await supabase
+          .from('farm_logs')
+          .select('*')
+          .eq('product_id', id)
+          .order('logged_at', { ascending: false })
+
+        if (!lError) setFarmLogs(logsData || [])
+
       } catch (err) {
-        console.error("error fetching product:", err)
+        console.error("error fetching detail:", err)
       } finally {
         setLoading(false)
       }
@@ -60,7 +70,7 @@ export default function ProductDetail() {
         buyAmount,
         dummyPriceInPol
       )
- 
+
       const { error } = await supabase.rpc('handle_buy_product', {
         p_transaction_id: crypto.randomUUID(), 
         p_product_id: product.id,
@@ -70,15 +80,15 @@ export default function ProductDetail() {
         p_buyer_id: user.id,
         p_seller_id: product.seller_id,
         p_total_price: product.price_per_kg * buyAmount,
-        p_amount_paid: 0.01 * buyAmount // sesuaikan harganya
-        })
-
-        await supabase.from('notifications').insert({
+        p_amount_paid: 0.01 * buyAmount 
+      })
+ 
+      await supabase.from('notifications').insert({
         user_id: product.seller_id,
         title: 'pesanan baru!',
         message: `seseorang baru saja membeli ${buyAmount} kg ${product.name}. segera siapkan logistik!`,
         type: 'INFO'
-        })
+      })
 
       if (error) throw error
 
@@ -113,28 +123,52 @@ export default function ProductDetail() {
         </div>
       </nav>
 
-      <main className="max-w-5xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-16 mt-10">
-        <div className="space-y-8">
-          <div className="aspect-square bg-emerald-50 rounded-[4rem] border border-emerald-100 flex items-center justify-center relative overflow-hidden group shadow-inner">
-            <ShoppingBag size={140} strokeWidth={0.5} className="text-emerald-200 group-hover:scale-110 transition-transform duration-700" />
-            <div className="absolute top-8 left-8">
-              <span className="bg-emerald-800 text-white text-[10px] font-black px-5 py-2 rounded-full uppercase tracking-[0.2em] shadow-xl shadow-emerald-900/20">
-                {product.category}
-              </span>
+      <main className="max-w-5xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-16 mt-10"> 
+        <div className="space-y-12">
+          <div className="space-y-8">
+            <div className="aspect-square bg-emerald-50 rounded-[4rem] border border-emerald-100 flex items-center justify-center relative overflow-hidden group shadow-inner">
+              <ShoppingBag size={140} strokeWidth={0.5} className="text-emerald-200 group-hover:scale-110 transition-transform duration-700" />
+              <div className="absolute top-8 left-8">
+                <span className="bg-emerald-800 text-white text-[10px] font-black px-5 py-2 rounded-full uppercase tracking-[0.2em] shadow-xl shadow-emerald-900/20">
+                  {product.category}
+                </span>
+              </div>
+            </div>
+            
+            <div className="bg-slate-50 p-8 rounded-[3rem] border border-slate-100 flex items-start gap-5 shadow-sm">
+              <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-50">
+                 <ShieldCheck size={24} className="text-emerald-800" />
+              </div>
+              <div>
+                <p className="text-slate-900 font-black text-sm mb-1 uppercase tracking-tight">protokol harsa</p>
+                <p className="text-slate-400 text-xs leading-relaxed font-medium text-justify">dana anda aman di smart contract polygon. petani hanya bisa mencairkan dana setelah anda melakukan scan qr saat barang diterima.</p>
+              </div>
             </div>
           </div>
-          
-          <div className="bg-slate-50 p-8 rounded-[3rem] border border-slate-100 flex items-start gap-5 shadow-sm">
-            <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-50">
-               <ShieldCheck size={24} className="text-emerald-800" />
-            </div>
-            <div>
-              <p className="text-slate-900 font-black text-sm mb-1 uppercase tracking-tight">protokol harsa</p>
-              <p className="text-slate-400 text-xs leading-relaxed font-medium text-justify">dana anda aman di smart contract polygon. petani hanya bisa mencairkan dana setelah anda melakukan scan qr saat barang diterima di lokasi.</p>
+ 
+          <div className="space-y-8 mt-4">
+            <h3 className="text-xl font-black text-slate-900 italic uppercase tracking-tighter">Riwayat Budidaya</h3>
+            <div className="relative pl-8 border-l-2 border-slate-100 space-y-10">
+              {farmLogs.length > 0 ? (
+                farmLogs.map((log) => (
+                  <div key={log.id} className="relative">
+                    <div className="absolute -left-[41px] top-0 w-4 h-4 rounded-full bg-white border-4 border-emerald-800 shadow-sm" />
+                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 hover:shadow-md transition-all">
+                      <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest mb-2">
+                        {new Date(log.logged_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long' })}
+                      </p>
+                      <h4 className="text-sm font-black text-slate-800 italic mb-1">{log.activity_name}</h4>
+                      <p className="text-[11px] text-slate-400 font-medium leading-relaxed italic">"{log.description}"</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest italic">Belum ada catatan budidaya.</p>
+              )}
             </div>
           </div>
         </div>
-
+ 
         <div className="flex flex-col pt-4">
           <div className="flex items-center gap-3 mb-4">
             <div className="flex items-center gap-1.5 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
@@ -210,7 +244,7 @@ export default function ProductDetail() {
           
           <div className="mt-8 p-6 bg-slate-50 rounded-[2rem] border border-slate-100 border-dashed flex items-center gap-4">
             <Info size={18} className="text-slate-400" />
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-loose">pengiriman via logistik harsa estimasi h+2 setelah konfirmasi petani</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-loose text-justify">pengiriman via logistik harsa estimasi h+2 setelah konfirmasi petani</p>
           </div>
         </div>
       </main>

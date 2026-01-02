@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, custom, http, parseEther, parseGwei } from 'viem'
+import { createPublicClient, createWalletClient, custom, http, parseEther } from 'viem'
 import { polygonAmoy } from 'viem/chains'
 import abi from './escrowAbi.json' 
  
@@ -18,57 +18,90 @@ export const getWalletClient = () => {
   }
   return null
 }
- 
-const uuidToBigInt = (uuid) => {
-  const hex = uuid.replace(/-/g, '')
-  return BigInt('0x' + hex)
-}
 
 export const buyProduct = async (sellerAddress, productId, amountKg, priceInPol) => {
   if (!window.ethereum) throw new Error("metamask tidak ditemukan")
-
   const walletClient = getWalletClient()
   const [account] = await walletClient.getAddresses()
  
   if (account.toLowerCase() === sellerAddress.toLowerCase()) {
-    throw new Error("anda tidak bisa membeli produk anda sendiri. gunakan akun lain untuk mengetes.")
+    throw new Error("anda tidak bisa membeli produk anda sendiri.")
   }
 
-  const totalValue = parseEther((priceInPol * amountKg).toString())
-  if (totalValue === 0n) throw new Error("total harga tidak boleh nol")
+  const totalValue = parseEther((Number(priceInPol) * Number(amountKg)).toFixed(18))
+  
+  console.log("Debug Pay:", {
+    val: totalValue.toString(),
+    price: priceInPol,
+    qty: amountKg
+  })
 
   try {
     const hash = await walletClient.writeContract({
       address: contractAddress,
       abi: abi,
-      functionName: 'confirmDelivery',
-      args: [cleanId],
+      functionName: 'createTransaction',
+      args: [sellerAddress, productId],
       account,
-      gas: 500000n
+      value: totalValue,
+      gas: 150000n,  
     })
-
-    const tx = transactions.find(t => t.id === txId)
-
-    await supabase.from('transactions').update({ status: 'COMPLETED' }).eq('id', txId)
-
-    if (tx) {
-      await supabase.from('notifications').insert({
-        user_id: tx.seller_id,
-        title: 'dana cair!',
-        message: `dana sebesar rp ${tx.total_price.toLocaleString()} dari penjualan ${tx.product?.name} telah masuk ke saldo cair anda.`,
-        type: 'SUCCESS'
-      })
-    }
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash })
     
-    let blockchainId = 1
+    let blockchainId = 0
     if (receipt.logs && receipt.logs.length > 0) {
-      blockchainId = Number(BigInt(receipt.logs[0].topics[1] || 1))
+      try {
+        blockchainId = Number(BigInt(receipt.logs[0].topics[1]))
+      } catch (e) {
+        blockchainId = 1
+      }
     }
 
     return { hash, blockchainId }
   } catch (err) {
+    console.error("Detail Error Blockchain:", err)
+    if (err.message.includes('insufficient funds')) {
+       throw new Error("Saldo POL Amoy tipis banget, gak cukup buat bayar + gas fee.")
+    }
+    throw err
+  }
+}
+ 
+export const confirmReceipt = async (blockchainTxId, supabaseTxId, supabase) => {
+  if (!window.ethereum) throw new Error("metamask tidak ditemukan")
+  const walletClient = getWalletClient()
+  const [account] = await walletClient.getAddresses()
+
+  try {  
+    const balanceBefore = await publicClient.getBalance({ address: contractAddress })
+    console.log("Saldo di Escrow saat ini:", balanceBefore.toString())
+
+    const hash = await walletClient.writeContract({
+      address: contractAddress,
+      abi: abi,
+      functionName: 'confirmDelivery',
+      args: [BigInt(blockchainTxId)],  
+      account,
+      gas: 200000n,  
+    })
+
+    const receipt = await publicClient.waitForTransactionReceipt({ hash })
+    
+    if (receipt.status === 'reverted') {
+      throw new Error("Transaksi Blockchain GAGAL (Reverted). Duit belum pindah!")
+    }
+
+    const { error } = await supabase
+      .from('transactions')
+      .update({ status: 'COMPLETED' })
+      .eq('id', supabaseTxId)
+
+    if (error) console.error("Database update error:", error)
+
+    return { success: true, hash }
+  } catch (err) {
+    console.error("GAGAL TOTAL:", err.message)
     throw err
   }
 }
