@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext'
 import { 
   User, MapPin, ShieldCheck, Mail, Wallet, Loader2, 
   Link as LinkIcon, RefreshCcw, Award, Package, Star, 
-  ExternalLink, Edit2, ChevronRight, Camera, TrendingUp, DollarSign, X
+  ExternalLink, Edit2, ChevronRight, Camera, TrendingUp, DollarSign, X, Check
 } from 'lucide-react'
 import { createWalletClient, custom } from 'viem'
 import { polygonAmoy } from 'viem/chains'
@@ -18,6 +18,8 @@ export default function ProfilPage() {
   const [isConnecting, setIsConnecting] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const fileInputRef = useRef(null)
 
   const [editForm, setEditForm] = useState({ full_name: '', bio: '', location: '' })
@@ -26,25 +28,26 @@ export default function ProfilPage() {
     if (user) fetchProfileData()
   }, [user])
 
-const fetchProfileData = async () => {
-  try {
-    const [profRes, prodCount, salesRes] = await Promise.all([ 
-      supabase.from('profiles').select('*, bio, location').eq('id', user.id).single(),
-      supabase.from('products').select('id', { count: 'exact' }).eq('seller_id', user.id),
-      supabase.from('transactions')
-        .select('total_price, amount_kg')
-        .eq('seller_id', user.id)
-        .eq('status', 'COMPLETED')
-    ])
-    
-    if (profRes.error) throw profRes.error;
+  const fetchProfileData = async (isManualSync = false) => {
+    if (isManualSync) setSyncing(true)
+    try {
+      const [profRes, prodCount, salesRes] = await Promise.all([ 
+        supabase.from('profiles').select('*, bio, location').eq('id', user.id).single(),
+        supabase.from('products').select('id', { count: 'exact' }).eq('seller_id', user.id),
+        supabase.from('transactions')
+          .select('total_price, amount_kg')
+          .eq('seller_id', user.id)
+          .eq('status', 'COMPLETED')
+      ])
+      
+      if (profRes.error) throw profRes.error;
 
-    setProfile(profRes.data) 
-    setEditForm({
-      full_name: profRes.data?.full_name || '',
-      location: profRes.data?.location || 'Jawa Barat, Indonesia',
-      bio: profRes.data?.bio || ''
-    })
+      setProfile(profRes.data) 
+      setEditForm({
+        full_name: profRes.data?.full_name || '',
+        location: profRes.data?.location || 'Jawa Barat, Indonesia',
+        bio: profRes.data?.bio || ''
+      })
 
       const totalRevenue = salesRes.data?.reduce((acc, curr) => acc + curr.total_price, 0) || 0
       const totalKilo = salesRes.data?.reduce((acc, curr) => acc + curr.amount_kg, 0) || 0
@@ -55,41 +58,36 @@ const fetchProfileData = async () => {
         revenue: totalRevenue,
         rating: 4.9
       })
-    } catch (err) { console.error(err) } finally { setLoading(false) }
+      if (isManualSync) alert("Data berhasil diperbarui!")
+    } catch (err) { 
+      console.error(err) 
+    } finally { 
+      setLoading(false)
+      setSyncing(false)
+    }
+  }
+
+  const handleCopy = (text) => {
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   const handleUploadAvatar = async (e) => {
     try {
       const file = e.target.files[0]
       if (!file) return
-
       setUploading(true)
       const fileExt = file.name.split('.').pop()
       const filePath = `${user.id}/${Math.random()}.${fileExt}`
- 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true })
-
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, { upsert: true })
       if (uploadError) throw uploadError
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath)
- 
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath)
       const finalUrl = `${publicUrl}?t=${new Date().getTime()}`
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: finalUrl })
-        .eq('id', user.id)
-
-      if (updateError) throw updateError
-
-      await fetchProfileData()
+      await supabase.from('profiles').update({ avatar_url: finalUrl }).eq('id', user.id)
+      fetchProfileData()
       alert("Foto profil berhasil diperbarui!")
     } catch (error) { 
-      console.error(error)
       alert("Gagal upload: " + error.message) 
     } finally { 
       setUploading(false) 
@@ -127,7 +125,6 @@ const fetchProfileData = async () => {
   return (
     <div className="min-h-screen bg-white font-raleway pb-32"> 
       <main className="max-w-5xl mx-auto p-4 md:p-12 space-y-8 md:space-y-10">
-         
         <div className="relative bg-forest rounded-[2.5rem] md:rounded-[3.5rem] p-8 md:p-16 text-white overflow-hidden shadow-2xl">
           <div className="relative z-10 flex flex-col md:flex-row items-center gap-6 md:gap-10">
             <div className="relative group shrink-0">
@@ -135,25 +132,18 @@ const fetchProfileData = async () => {
                 {profile?.avatar_url ? (
                   <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
                 ) : (
-                  <User size={60} className="text-emerald-100/30 md:size-20" />
+                  <User className="text-emerald-100/30 w-16 h-16 md:w-20 md:h-20" />
                 )}
               </div>
-              <button 
-                onClick={() => fileInputRef.current.click()}
-                disabled={uploading}
-                className="absolute bottom-1 right-1 bg-harvest p-2.5 md:p-3 rounded-full border-4 border-forest shadow-lg hover:bg-clay transition-colors"
-              >
+              <button onClick={() => fileInputRef.current.click()} disabled={uploading} className="absolute bottom-1 right-1 bg-harvest p-2.5 md:p-3 rounded-full border-4 border-forest shadow-lg hover:bg-clay transition-colors">
                 {uploading ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} className="text-forest" />}
               </button>
               <input type="file" ref={fileInputRef} onChange={handleUploadAvatar} className="hidden" accept="image/*" />
             </div>
-
             <div className="flex-1 space-y-4 md:space-y-6 text-center md:text-left">
               <div>
                 <h1 className="text-2xl md:text-4xl font-bold tracking-tight">{profile?.full_name}</h1>
-                <p className="text-emerald-100/60 mt-1 md:mt-2 font-medium text-sm md:text-base">
-                  {profile?.bio || "Petani Harsa Digital"}
-                </p>
+                <p className="text-emerald-100/60 mt-1 md:mt-2 font-medium text-sm md:text-base">{profile?.bio || "Petani Harsa Digital"}</p>
                 <div className="flex flex-wrap justify-center md:justify-start gap-2 mt-4 md:mt-6">
                   <Badge icon={<ShieldCheck size={14} />} label="Terverifikasi" color="bg-white/10" />
                   <Badge icon={<Star size={14} className="fill-yellow-400 text-yellow-400" />} label={`${stats.rating} Reputasi`} color="bg-white/10" />
@@ -165,10 +155,10 @@ const fetchProfileData = async () => {
         </div>
  
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-          <StatCard icon={<Package className="text-forest"/>} label="Produk" value={stats.total_products} />
-          <StatCard icon={<TrendingUp className="text-emerald-600"/>} label="Terjual" value={`${stats.total_sales} Kg`} />
-          <StatCard icon={<DollarSign className="text-harvest"/>} label="Omzet" value={`Rp ${stats.revenue.toLocaleString('id-ID')}`} />
-          <StatCard icon={<Star className="text-yellow-500 fill-yellow-500"/>} label="Rating" value={stats.rating} />
+          <StatCard icon={<Package className="text-forest w-5 h-5 md:w-6 md:h-6"/>} label="Produk" value={stats.total_products} />
+          <StatCard icon={<TrendingUp className="text-emerald-600 w-5 h-5 md:w-6 md:h-6"/>} label="Terjual" value={`${stats.total_sales} Kg`} />
+          <StatCard icon={<DollarSign className="text-harvest w-5 h-5 md:w-6 md:h-6"/>} label="Omzet" value={`Rp ${stats.revenue.toLocaleString('id-ID')}`} />
+          <StatCard icon={<Star className="text-yellow-500 fill-yellow-500 w-5 h-5 md:w-6 md:h-6"/>} label="Rating" value={stats.rating} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -176,8 +166,8 @@ const fetchProfileData = async () => {
             <section className="bg-white rounded-[2rem] md:rounded-[3rem] border border-clay p-6 md:p-10 shadow-sm space-y-8 md:space-y-10">
               <h3 className="text-xs font-bold text-stone uppercase tracking-widest border-b border-clay pb-4">Data Akun</h3>
               <div className="space-y-6">
-                <ProfileItem icon={<Mail size={20}/>} label="Email Terdaftar" value={user.email} />
-                <ProfileItem icon={<MapPin size={20}/>} label="Wilayah Distribusi" value={profile?.location || "Jawa Barat, Indonesia"} />
+                <ProfileItem icon={<Mail className="text-forest w-5 h-5 md:w-6 md:h-6"/>} label="Email Terdaftar" value={user.email} />
+                <ProfileItem icon={<MapPin className="text-forest w-5 h-5 md:w-6 md:h-6"/>} label="Wilayah Distribusi" value={profile?.location || "Jawa Barat, Indonesia"} />
               </div>
             </section>
 
@@ -189,35 +179,18 @@ const fetchProfileData = async () => {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-[10px] font-bold text-stone uppercase tracking-widest">Dompet Blockchain</p>
-                   
                   {profile?.wallet_address ? (
-                    <button 
-                      onClick={() => {
-                        navigator.clipboard.writeText(profile.wallet_address);
-                        alert("Alamat dompet berhasil disalin!");
-                      }}
-                      className="group flex items-center gap-2 mt-1 w-full"
-                      title="Klik untuk salin alamat"
-                    >
-                      <p className="text-xs md:text-sm font-mono font-bold text-forest break-all text-left group-hover:text-emerald-600 transition-colors">
-                        {profile.wallet_address}
-                      </p>
-                      <div className="p-1.5 bg-forest/5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                        <LinkIcon size={12} className="text-forest" />
+                    <button onClick={() => handleCopy(profile.wallet_address)} className="group flex items-center gap-2 mt-1 w-full" title="Klik untuk salin">
+                      <p className="text-xs md:text-sm font-mono font-bold text-forest break-all text-left group-hover:text-emerald-600 transition-colors">{profile.wallet_address}</p>
+                      <div className="p-1.5 bg-forest/5 rounded-lg shrink-0">
+                        {copied ? <Check size={12} className="text-emerald-600" /> : <LinkIcon size={12} className="text-forest opacity-40 group-hover:opacity-100 transition-opacity" />}
                       </div>
                     </button>
-                  ) : (
-                    <p className="text-xs md:text-sm font-bold text-stone/40 mt-1 italic">Belum Terhubung</p>
-                  )}
+                  ) : ( <p className="text-xs md:text-sm font-bold text-stone/40 mt-1 italic">Belum Terhubung</p> )}
                 </div>
               </div>
-              
-              <button 
-                onClick={handleConnectWallet} 
-                disabled={isConnecting} 
-                className={`w-full md:w-auto px-8 py-3.5 md:py-4 rounded-xl md:rounded-2xl text-[10px] md:text-xs font-bold transition-all shadow-xl ${profile?.wallet_address ? 'bg-white text-forest border border-clay hover:bg-clay' : 'bg-forest text-white shadow-forest/20 active:scale-95'}`}
-              >
-                {isConnecting ? <RefreshCcw size={16} className="animate-spin" /> : <LinkIcon size={16} className="mr-2 inline" />}
+              <button onClick={handleConnectWallet} disabled={isConnecting} className={`w-full md:w-auto px-8 py-3.5 md:py-4 rounded-xl md:rounded-2xl text-[10px] md:text-xs font-bold transition-all shadow-xl ${profile?.wallet_address ? 'bg-white text-forest border border-clay hover:bg-clay' : 'bg-forest text-white shadow-forest/20 active:scale-95'}`}>
+                {isConnecting ? <Loader2 size={16} className="animate-spin" /> : <LinkIcon size={16} className="mr-2 inline" />}
                 {profile?.wallet_address ? "Ganti Dompet" : "Hubungkan"}
               </button>
             </div>
@@ -229,19 +202,29 @@ const fetchProfileData = async () => {
               <h4 className="text-[10px] font-bold text-stone uppercase tracking-widest mb-4 md:mb-6 px-2">Aksi Pengguna</h4>
               <div className="space-y-1 md:space-y-2">
                 <ActionButton icon={<Edit2 size={16}/>} label="Ubah Profil" onClick={() => setIsEditModalOpen(true)} />
-                <ActionButton icon={<RefreshCcw size={16}/>} label="Sinkronisasi Data" onClick={fetchProfileData} />
-                <ActionButton icon={<ExternalLink size={16}/>} label="Polygonscan" disabled={!profile?.wallet_address} />
+                <ActionButton 
+                  icon={syncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16}/>} 
+                  label={syncing ? "Sinkronisasi..." : "Sinkronisasi Data"} 
+                  onClick={() => fetchProfileData(true)} 
+                  disabled={syncing}
+                />
+                <ActionButton 
+                  icon={<ExternalLink size={16}/>} 
+                  label="Polygonscan" 
+                  disabled={!profile?.wallet_address} 
+                  onClick={() => window.open(`https://amoy.polygonscan.com/address/${profile?.wallet_address}`, '_blank')}
+                />
               </div>
             </div>
           </aside>
         </div>
       </main>
- 
+
       {isEditModalOpen && (
         <div className="fixed inset-0 z-[110] flex items-end md:items-center justify-center p-0 md:p-4 bg-forest/40 backdrop-blur-sm">
           <div className="bg-white w-full max-w-md rounded-t-[2.5rem] md:rounded-[2.5rem] p-8 md:p-10 shadow-2xl animate-in slide-in-from-bottom md:zoom-in duration-300 overflow-y-auto max-h-[90vh]">
             <div className="flex justify-between items-center mb-6 md:mb-8">
-              <h2 className="text-xl md:text-2xl font-bold text-forest uppercase tracking-tighter italic text-justify">Edit Profil</h2>
+              <h2 className="text-xl md:text-2xl font-bold text-forest uppercase tracking-tighter italic">Edit Profil</h2>
               <button onClick={() => setIsEditModalOpen(false)} className="p-2 bg-slate-100 rounded-full text-stone"><X size={20}/></button>
             </div>
             <form onSubmit={handleUpdateProfile} className="space-y-5 md:space-y-6">
@@ -268,8 +251,8 @@ const fetchProfileData = async () => {
 
 function StatCard({ icon, label, value }) {
   return (
-    <div className="bg-white p-4 md:p-6 rounded-[1.5rem] md:rounded-[2.5rem] border border-clay shadow-sm flex flex-col items-center text-center gap-1 md:gap-2 group hover:shadow-md transition-all">
-      <div className="p-2 md:p-3 bg-chalk rounded-xl md:rounded-2xl mb-1 group-hover:scale-110 transition-transform">{icon}</div>
+    <div className="bg-white p-4 md:p-6 rounded-[1.5rem] md:rounded-[2.5rem] border border-clay shadow-sm flex flex-col items-center text-center gap-1 md:gap-2">
+      <div className="bg-chalk p-2 md:p-3 rounded-xl md:rounded-2xl mb-1">{icon}</div>
       <p className="text-[8px] md:text-[10px] font-bold text-stone uppercase tracking-widest">{label}</p>
       <p className="text-sm md:text-xl font-bold text-forest tracking-tight truncate w-full">{value}</p>
     </div>
@@ -278,8 +261,8 @@ function StatCard({ icon, label, value }) {
 
 function ProfileItem({ icon, label, value }) {
   return (
-    <div className="flex items-center gap-4 md:gap-6 group">
-      <div className="p-3 md:p-5 bg-chalk rounded-xl md:rounded-3xl border border-clay group-hover:bg-white transition-colors shrink-0">{icon}</div>
+    <div className="flex items-center gap-4 md:gap-6">
+      <div className="bg-chalk p-3 md:p-5 rounded-xl md:rounded-3xl border border-clay shrink-0">{icon}</div>
       <div className="min-w-0">
         <p className="text-[9px] md:text-[10px] font-bold text-stone uppercase tracking-widest mb-0.5 md:mb-1">{label}</p>
         <p className="text-xs md:text-sm font-bold text-slate-800 break-words">{value}</p>

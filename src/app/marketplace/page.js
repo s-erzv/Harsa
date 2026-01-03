@@ -5,7 +5,7 @@ import {
   ShoppingCart, Search, Filter, MapPin, 
   ShieldCheck, Plus, Leaf, LayoutDashboard,
   ArrowRight, X, Trash2, ShoppingBag, Loader2,
-  Star, Check, Package
+  Star, Check, Package, LogIn, Languages
 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -32,16 +32,68 @@ export default function Marketplace() {
   const [products, setProducts] = useState([])
   const [cart, setCart] = useState([])
   const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('Semua')
   const [isCartOpen, setIsCartOpen] = useState(false)
+  const [lang, setLang] = useState('id')
   
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
 
-  const categories = ['Semua', 'Beras', 'Sayuran', 'Buah', 'Rempah', 'Lainnya']
+  const t = {
+    id: {
+      brand: "Pasar Harsa",
+      nav_dashboard: "Panel Kontrol",
+      nav_login: "Masuk Akun",
+      cart_title: "Keranjang Belanja",
+      cart_empty: "Keranjang Anda masih kosong",
+      cart_total: "Total Estimasi",
+      cart_checkout: "Lanjutkan Checkout",
+      hero_tag: "#RantaiPasokTerpercaya",
+      hero_title: "Dapatkan hasil bumi",
+      hero_accent: "langsung",
+      hero_suffix: "dari sumbernya.",
+      search_placeholder: "Cari Beras, Sayur, atau Buah...",
+      cat_label: "Kategori",
+      stock: "Stok",
+      price_label: "Harga / Kg",
+      detail: "Detail",
+      not_found: "Produk Tidak Ditemukan",
+      not_found_desc: "Kami tidak dapat menemukan hasil bumi yang sesuai dengan pencarian Anda.",
+      reset: "Atur Ulang Pencarian",
+      categories: ['Semua', 'Beras', 'Sayuran', 'Buah', 'Rempah', 'Lainnya']
+    },
+    en: {
+      brand: "Harsa Market",
+      nav_dashboard: "Dashboard",
+      nav_login: "Login",
+      cart_title: "Shopping Cart",
+      cart_empty: "Your cart is empty",
+      cart_total: "Estimated Total",
+      cart_checkout: "Proceed to Checkout",
+      hero_tag: "#TrustedSupplyChain",
+      hero_title: "Get agriculture products",
+      hero_accent: "directly",
+      hero_suffix: "from the source.",
+      search_placeholder: "Search Rice, Veggies, or Fruits...",
+      cat_label: "Category",
+      stock: "Stock",
+      price_label: "Price / Kg",
+      detail: "Details",
+      not_found: "Product Not Found",
+      not_found_desc: "We couldn't find any products matching your search criteria.",
+      reset: "Reset Search",
+      categories: ['All', 'Rice', 'Vegetables', 'Fruits', 'Spices', 'Others']
+    }
+  }
+
+  const content = lang === 'id' ? t.id : t.en;
 
   useEffect(() => {
-    const fetchAllProducts = async () => {
+    const fetchInitialData = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      setUser(session?.user || null)
+
       const { data } = await supabase
         .from('products')
         .select('*, profiles(full_name, reputation_score)')
@@ -49,8 +101,8 @@ export default function Marketplace() {
       setProducts(data || [])
       setLoading(false)
     }
-    fetchAllProducts()
     
+    fetchInitialData()
     const savedCart = localStorage.getItem('harsa_cart')
     if (savedCart) setCart(JSON.parse(savedCart))
   }, [supabase])
@@ -79,8 +131,11 @@ export default function Marketplace() {
   const cartTotal = cart.reduce((sum, item) => sum + (item.price_per_kg * item.quantity), 0)
 
   const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory = selectedCategory === 'Semua' || p.category === selectedCategory
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) 
+    const catIndex = t[lang].categories.indexOf(selectedCategory)
+    const originalCat = catIndex !== -1 ? t.id.categories[catIndex] : 'Semua'
+    
+    const matchesCategory = selectedCategory === content.categories[0] || p.category === originalCat
     return matchesSearch && matchesCategory
   })
 
@@ -92,15 +147,30 @@ export default function Marketplace() {
             <div className="w-10 h-10 bg-forest rounded-xl flex items-center justify-center transition-transform group-hover:rotate-12">
               <Leaf size={20} className="text-chalk" />
             </div>
-            <span className="text-xl font-bold text-forest tracking-tighter uppercase">harsa pasar</span>
+            <span className="text-xl font-bold text-forest tracking-tighter">{content.brand}</span>
           </Link>
           
-          <div className="flex items-center gap-2 md:gap-4">
-            <Link href="/dashboard">
-              <Button variant="ghost" className="hidden md:flex gap-2 text-stone hover:text-forest font-bold">
-                <LayoutDashboard size={18} /> Panel Kontrol
-              </Button>
-            </Link>
+          <div className="flex items-center gap-2 md:gap-4"> 
+            <button 
+              onClick={() => setLang(lang === 'id' ? 'en' : 'id')}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-chalk border border-clay/50 text-[10px] font-bold text-forest hover:bg-clay/20 transition-all mr-2"
+            >
+              <Languages size={14} /> {lang.toUpperCase()}
+            </button>
+
+            {user ? (
+              <Link href="/dashboard">
+                <Button variant="ghost" className="hidden md:flex gap-2 text-stone hover:text-forest font-bold text-[11px] tracking-wider">
+                  <LayoutDashboard size={18} /> {content.nav_dashboard}
+                </Button>
+              </Link>
+            ) : (
+              <Link href="/login">
+                <Button variant="ghost" className="hidden md:flex gap-2 text-forest hover:bg-forest/5 font-bold border border-forest/10 rounded-xl text-[11px] tracking-wider">
+                  <LogIn size={18} /> {content.nav_login}
+                </Button>
+              </Link>
+            )}
 
             <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
               <SheetTrigger asChild>
@@ -113,10 +183,10 @@ export default function Marketplace() {
                   )}
                 </div>
               </SheetTrigger>
-              <SheetContent className="w-full sm:max-w-md rounded-l-lg border-clay bg-white flex flex-col font-raleway">
+              <SheetContent className="w-full sm:max-w-md rounded-l-2xl border-clay bg-white flex flex-col font-raleway">
                 <SheetHeader className="pb-6 border-b border-stone-100">
                   <SheetTitle className="text-2xl font-bold text-forest flex items-center gap-3">
-                    <ShoppingBag /> Keranjang Belanja
+                    <ShoppingBag /> {content.cart_title}
                   </SheetTitle>
                 </SheetHeader>
                 
@@ -124,16 +194,20 @@ export default function Marketplace() {
                   {cart.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-stone opacity-40 italic">
                       <ShoppingCart size={48} className="mb-4" />
-                      <p>Keranjang Anda masih kosong</p>
+                      <p>{content.cart_empty}</p>
                     </div>
                   ) : (
                     cart.map((item) => (
                       <div key={item.id} className="flex gap-4 p-4 rounded-3xl bg-chalk/50 border border-stone-50 group">
-                        <div className="w-20 h-20 bg-clay/30 rounded-2xl flex items-center justify-center shrink-0">
-                          <Package className="text-forest/30" />
+                        <div className="w-20 h-20 bg-clay/30 rounded-2xl flex items-center justify-center shrink-0 overflow-hidden">
+                          {item.image_url ? (
+                            <img src={item.image_url} className="w-full h-full object-cover" alt={item.name} />
+                          ) : (
+                            <Package className="text-forest/30" />
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-bold text-harvest uppercase tracking-widest">{item.category}</p>
+                          <p className="text-[10px] font-bold text-harvest tracking-widest">{item.category}</p>
                           <h4 className="font-bold text-forest truncate">{item.name}</h4>
                           <p className="text-xs text-stone font-medium">Rp {item.price_per_kg.toLocaleString()} x {item.quantity}kg</p>
                         </div>
@@ -148,11 +222,11 @@ export default function Marketplace() {
                 {cart.length > 0 && (
                   <SheetFooter className="pt-6 border-t border-stone-100 block space-y-4">
                     <div className="flex justify-between items-end">
-                      <span className="text-stone text-sm font-medium uppercase tracking-widest">Total Estimasi</span>
+                      <span className="text-stone text-sm font-medium tracking-widest">{content.cart_total}</span>
                       <span className="text-2xl font-bold text-forest tabular-nums">Rp {cartTotal.toLocaleString()}</span>
                     </div>
                     <Button className="w-full bg-forest hover:bg-forest/90 text-chalk h-14 rounded-2xl font-bold text-base shadow-xl shadow-forest/20">
-                      Lanjutkan Checkout
+                      {content.cart_checkout}
                     </Button>
                   </SheetFooter>
                 )}
@@ -166,10 +240,10 @@ export default function Marketplace() {
         <header className="mb-16">
           <div className="max-w-3xl">
             <Badge variant="secondary" className="bg-clay/50 text-forest font-bold mb-4 px-4 py-1.5 rounded-full border-none">
-              #RantaiPasokTerpercaya
+              {content.hero_tag}
             </Badge>
-            <h1 className="text-4xl md:text-6xl font-bold text-forest mb-8 leading-[1.1] tracking-tight">
-              Dapatkan hasil bumi <span className="italic text-harvest underline decoration-clay underline-offset-8">langsung</span> dari sumbernya.
+            <h1 className="text-4xl md:text-6xl font-bold text-stone-900 mb-8 leading-[1.1] tracking-tight">
+              {content.hero_title} <span className="italic text-harvest underline decoration-clay underline-offset-8">{content.hero_accent}</span> {content.hero_suffix}
             </h1>
             
             <div className="flex flex-col md:flex-row gap-3">
@@ -177,7 +251,7 @@ export default function Marketplace() {
                 <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-stone/40 group-focus-within:text-forest transition-colors" size={20} />
                 <input 
                   type="text" 
-                  placeholder="Cari Beras, Sayur, atau Buah..." 
+                  placeholder={content.search_placeholder} 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-14 pr-6 py-5 rounded-3xl bg-chalk border border-stone-100 focus:bg-white focus:ring-4 focus:ring-forest/5 outline-none transition-all text-sm font-medium"
@@ -187,11 +261,11 @@ export default function Marketplace() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button className="px-10 py-8 bg-forest hover:bg-forest/90 text-white rounded-3xl font-bold text-sm shadow-xl shadow-forest/20 gap-3">
-                    <Filter size={18} /> {selectedCategory === 'Semua' ? 'Kategori' : selectedCategory}
+                    <Filter size={18} /> {selectedCategory === content.categories[0] ? content.cat_label : selectedCategory}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56 rounded-2xl p-2 font-raleway border-clay bg-white">
-                  {categories.map((cat) => (
+                  {content.categories.map((cat) => (
                     <DropdownMenuItem 
                       key={cat}
                       onClick={() => setSelectedCategory(cat)}
@@ -222,10 +296,10 @@ export default function Marketplace() {
             <div className="p-6 bg-chalk rounded-full">
               <Search size={40} className="text-stone/20" />
             </div>
-            <h3 className="text-xl font-bold text-forest">Produk Tidak Ditemukan</h3>
-            <p className="text-stone max-w-xs mx-auto">Kami tidak dapat menemukan hasil bumi yang sesuai dengan pencarian Anda.</p>
-            <Button variant="link" onClick={() => {setSearchTerm(''); setSelectedCategory('Semua')}} className="text-harvest font-bold">
-              Atur Ulang Pencarian
+            <h3 className="text-xl font-bold text-forest">{content.not_found}</h3>
+            <p className="text-stone max-w-xs mx-auto">{content.not_found_desc}</p>
+            <Button variant="link" onClick={() => {setSearchTerm(''); setSelectedCategory(content.categories[0])}} className="text-harvest font-bold">
+              {content.reset}
             </Button>
           </div>
         ) : (
@@ -238,14 +312,18 @@ export default function Marketplace() {
                       {p.category}
                     </Badge>
                     
-                    <div className="absolute inset-0 flex items-center justify-center opacity-10 group-hover:opacity-20 group-hover:scale-110 transition-all duration-700">
-                      <ShieldCheck size={160} strokeWidth={1} className="text-forest" />
-                    </div>
+                    {p.image_url ? (
+                      <img src={p.image_url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={p.name} />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center opacity-10 group-hover:opacity-20 group-hover:scale-110 transition-all duration-700">
+                        <ShieldCheck size={160} strokeWidth={1} className="text-forest" />
+                      </div>
+                    )}
 
                     <div className="absolute bottom-6 inset-x-6 z-10 flex justify-between items-end">
                       <div className="space-y-2 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500">
                          <Badge className="bg-forest text-chalk border-none font-bold">
-                           Stok {p.stock_kg} kg
+                           {content.stock} {p.stock_kg} kg
                          </Badge>
                       </div>
                       <button 
@@ -258,18 +336,14 @@ export default function Marketplace() {
                   </div>
 
                   <div className="px-2 space-y-3"> 
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between text-[11px] font-bold tracking-widest">
                       <div className="flex items-center gap-2">
                         <MapPin size={14} className="text-harvest" />
-                        <span className="text-[11px] font-bold uppercase tracking-widest text-stone/60">
-                          {p.profiles?.full_name}
-                        </span>
+                        <span className="text-stone/60 truncate max-w-[100px]">{p.profiles?.full_name}</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <Star size={12} className="fill-harvest text-harvest" />
-                        <span className="text-[11px] font-bold text-stone">
-                          {p.profiles?.reputation_score || 100}
-                        </span>
+                        <span className="text-stone">{p.profiles?.reputation_score || 100}</span>
                       </div>
                     </div>
                     
@@ -281,14 +355,14 @@ export default function Marketplace() {
                     
                     <div className="flex items-end justify-between pt-1">
                       <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-stone uppercase tracking-widest">Harga / Kg</span>
-                        <p className="text-forest font-bold text-2xl tracking-tighter">
+                        <span className="text-[10px] font-bold text-stone tracking-widest">{content.price_label}</span>
+                        <p className="text-forest font-bold text-2xl tracking-tighter tabular-nums">
                           Rp{p.price_per_kg?.toLocaleString()}
                         </p>
                       </div>
                       <Link href={`/marketplace/${p.id}`}>
-                        <Button variant="ghost" size="sm" className="rounded-full text-stone hover:text-forest group/btn">
-                          Detail <ArrowRight size={14} className="ml-1 transition-transform group-hover/btn:translate-x-1" />
+                        <Button variant="ghost" size="sm" className="rounded-full text-stone hover:text-forest group/btn font-bold text-[10px] tracking-widest">
+                          {content.detail} <ArrowRight size={14} className="ml-1 transition-transform group-hover/btn:translate-x-1" />
                         </Button>
                       </Link>
                     </div>
@@ -300,9 +374,9 @@ export default function Marketplace() {
         )}
       </main>
 
-      <Link href="/dashboard">
-        <Button className="md:hidden fixed bottom-6 right-6 w-14 h-14 rounded-full bg-forest text-chalk shadow-2xl z-[60] p-0">
-          <LayoutDashboard size={24} />
+      <Link href={user ? "/dashboard" : "/login"}>
+        <Button className="md:hidden fixed bottom-6 right-6 w-14 h-14 rounded-full bg-forest text-chalk shadow-2xl z-[60] p-0 active:scale-90 transition-transform">
+          {user ? <LayoutDashboard size={24} /> : <LogIn size={24} />}
         </Button>
       </Link>
     </div>
