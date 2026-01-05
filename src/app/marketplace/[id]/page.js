@@ -101,24 +101,27 @@ export default function ProductDetail() {
     setIsProcessing(true)
     try { 
       const dummyPriceInPol = 0.001 
+      
       const { hash, blockchainId } = await buyProduct(
-        product.profiles.wallet_address,
-        product.id,
-        buyAmount,
-        dummyPriceInPol
-      )
+        product.profiles.wallet_address,  
+        product.id,                      
+        buyAmount,                       
+        dummyPriceInPol                  
+      );
 
       const { error } = await supabase.rpc('handle_buy_product', {
         p_transaction_id: crypto.randomUUID(), 
         p_product_id: product.id,
         p_amount_kg: buyAmount,
-        p_blockchain_id: blockchainId,
+        p_blockchain_id: blockchainId.toString(),  
         p_tx_hash: hash,
         p_buyer_id: user.id,
         p_seller_id: product.seller_id,
-        p_total_price: product.price_per_kg * buyAmount,
-        p_amount_paid: 0.01 * buyAmount 
-      })
+        p_total_price: Number(product.price_per_kg * buyAmount),
+        p_amount_paid: Number(dummyPriceInPol * buyAmount)
+      });
+
+      if (error) throw error;
 
       await supabase.from('notifications').insert({
         user_id: product.seller_id,
@@ -127,15 +130,16 @@ export default function ProductDetail() {
         type: 'INFO'
       })
 
-      if (error) throw error
-      alert("Sukses! Dana dikunci dan stok telah diperbarui")
+      alert("Sukses! Dana dikunci di blockchain dan stok telah diperbarui")
       router.push('/dashboard/transaksi')
+      
     } catch (err) {
+      console.error("Detail Error:", err)
       alert(err.message || "Transaksi gagal")
     } finally {
       setIsProcessing(false)
     }
-  }
+}
 
   if (loading) return (
     <div className="h-screen flex flex-col items-center justify-center bg-white gap-4">

@@ -5,7 +5,7 @@ import {
   User, LogOut, X, ShoppingBag,
   HelpCircle, ChevronLeft, ChevronRight,
   Truck, Mail, MessageSquare, TrendingUp,
-  Plus
+  Plus, Store  
 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -22,7 +22,7 @@ export default function Sidebar({ logout }) {
     { icon: <LayoutDashboard size={22}/>, label: "Beranda", path: "/dashboard" },
     { icon: <Package size={22}/>, label: "Produk", path: "/dashboard/produk" },
     { icon: <ShoppingBag size={22}/>, label: "Pasar", path: "/marketplace" },
-    { icon: <TrendingUp size={22}/>, label: "Logistik", path: "/dashboard/transaksi" },
+    { icon: <TrendingUp size={22}/>, label: "Pesanan", path: "/dashboard/transaksi" },
   ]
 
   return (
@@ -46,7 +46,7 @@ export default function Sidebar({ logout }) {
             )}
           </div>
               
-          <nav className="flex-1 space-y-2 w-full flex flex-col items-center font-raleway">
+          <nav className="flex-1 space-y-2 w-full flex flex-col items-center font-raleway"> 
             {mainItems.map((item) => {
               const isActive = pathname === item.path
               return (
@@ -62,6 +62,15 @@ export default function Sidebar({ logout }) {
                 </Link>
               )
             })}
+
+            <Link href="/dashboard/penjualan"
+              className={`flex items-center transition-all duration-300 rounded-2xl font-bold ${
+                pathname === "/dashboard/penjualan" ? 'bg-forest text-chalk shadow-lg' : 'text-stone/60 hover:bg-chalk'
+              } ${isCollapsed ? 'justify-center w-14 h-14 p-0' : 'w-full px-4 py-3.5 gap-4'}`}
+            >
+              <Store size={22}/>
+              {!isCollapsed && <span className="text-sm">Penjualan Saya</span>}
+            </Link>
 
             <div className={`h-px bg-clay/30 my-4 transition-all ${isCollapsed ? 'w-10' : 'w-full'}`} />
 
@@ -80,7 +89,7 @@ export default function Sidebar({ logout }) {
               } ${isCollapsed ? 'justify-center w-14 h-14 p-0' : 'w-full px-4 py-3.5 gap-4'}`}
             >
               <BarChart3 size={22}/>
-              {!isCollapsed && <span className="text-sm">Analisis</span>}
+              {!isCollapsed && <span className="text-sm">Analisis Bisnis</span>}
             </Link>
 
             <button 
@@ -156,13 +165,21 @@ export default function Sidebar({ logout }) {
               </button>
             </div>
 
-              <div className="grid grid-cols-1 gap-3 overflow-y-auto max-h-[60vh] px-1 no-scrollbar">
+            <div className="grid grid-cols-1 gap-3 overflow-y-auto max-h-[60vh] px-1 no-scrollbar">
+              <MobileMenuItem 
+                icon={<Store size={22}/>} 
+                label="Penjualan saya" 
+                path="/dashboard/penjualan" 
+                onClick={() => setIsMenuOpen(false)} 
+              />
+              
               <MobileMenuItem 
                 icon={<User size={22}/>} 
                 label="Profil saya" 
                 path="/dashboard/profil" 
                 onClick={() => setIsMenuOpen(false)} 
               />
+              
               <MobileMenuItem 
                 icon={<BarChart3 size={22}/>} 
                 label="Analisis bisnis" 

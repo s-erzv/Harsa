@@ -50,7 +50,16 @@ export default function PetaniProfile() {
       try {
         const [profRes, revRes, prodRes, txCount] = await Promise.all([
           supabase.from('profiles').select('*').eq('id', id).single(),
-          supabase.from('reviews').select('*, buyer:profiles(full_name, avatar_url)').eq('seller_id', id).order('created_at', { ascending: false }),
+          supabase.from('reviews')
+            .select(`
+              *,
+              buyer:profiles!reviews_buyer_id_fkey (
+                full_name,
+                avatar_url
+              )
+            `)
+            .eq('seller_id', id)
+            .order('created_at', { ascending: false }),
           supabase.from('products').select('*').eq('seller_id', id),
           supabase.from('transactions').select('id', { count: 'exact' }).eq('seller_id', id).eq('status', 'COMPLETED')
         ])
