@@ -1,23 +1,56 @@
 "use client"
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
   LayoutDashboard, Package, BarChart3, 
   User, LogOut, X, ShoppingBag,
   HelpCircle, ChevronLeft, ChevronRight,
   Truck, Mail, MessageSquare, TrendingUp,
-  Plus, Store  
+  Plus, Store   
 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useAuth } from '@/context/AuthContext'
 import NotificationBell from '@/components/NotificationBell'
 
 export default function Sidebar({ logout }) {
+  const { user, supabase } = useAuth()
   const pathname = usePathname()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false) 
   const [isHelpOpen, setIsHelpOpen] = useState(false)
-   
+  const [unreadChatCount, setUnreadChatCount] = useState(0)
+
+  useEffect(() => {
+    if (user) {
+      fetchUnreadChats()
+
+      const channel = supabase
+        .channel('realtime_unread_chats')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
+          filter: `receiver_id=eq.${user.id}`
+        }, () => {
+          fetchUnreadChats()
+        })
+        .subscribe()
+
+      return () => { supabase.removeChannel(channel) }
+    }
+  }, [user])
+
+  const fetchUnreadChats = async () => {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('id', { count: 'exact' })
+      .eq('receiver_id', user.id)
+      .eq('is_read', false)
+    
+    if (!error) setUnreadChatCount(data.length || 0)
+  }
+
   const mainItems = [
     { icon: <LayoutDashboard size={22}/>, label: "Beranda", path: "/dashboard" },
     { icon: <Package size={22}/>, label: "Produk", path: "/dashboard/produk" },
@@ -72,16 +105,21 @@ export default function Sidebar({ logout }) {
               {!isCollapsed && <span className="text-sm">Penjualan Saya</span>}
             </Link>
 
-            <div className={`h-px bg-clay/30 my-4 transition-all ${isCollapsed ? 'w-10' : 'w-full'}`} />
-
-            <Link href="/dashboard/profil"
-              className={`flex items-center transition-all duration-300 rounded-2xl font-bold ${
-                pathname === "/dashboard/profil" ? 'bg-forest text-chalk shadow-lg' : 'text-stone/60 hover:bg-chalk'
+            <Link href="/dashboard/chat"
+              className={`relative flex items-center transition-all duration-300 rounded-2xl font-bold ${
+                pathname === "/dashboard/chat" ? 'bg-forest text-chalk shadow-lg' : 'text-stone/60 hover:bg-chalk'
               } ${isCollapsed ? 'justify-center w-14 h-14 p-0' : 'w-full px-4 py-3.5 gap-4'}`}
             >
-              <User size={22}/>
-              {!isCollapsed && <span className="text-sm">Profil Saya</span>}
+              <MessageSquare size={22}/>
+              {!isCollapsed && <span className="text-sm">Pesan</span>}
+              {unreadChatCount > 0 && (
+                <span className={`absolute ${isCollapsed ? 'top-2 right-2' : 'right-4'} bg-red-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full border-2 border-white animate-bounce`}>
+                  {unreadChatCount}
+                </span>
+              )}
             </Link>
+
+            <div className={`h-px bg-clay/30 my-4 transition-all ${isCollapsed ? 'w-10' : 'w-full'}`} />
 
             <Link href="/dashboard/analisis"
               className={`flex items-center transition-all duration-300 rounded-2xl font-bold ${
@@ -91,6 +129,16 @@ export default function Sidebar({ logout }) {
               <BarChart3 size={22}/>
               {!isCollapsed && <span className="text-sm">Analisis Bisnis</span>}
             </Link>
+            
+            <Link href="/dashboard/profil"
+              className={`flex items-center transition-all duration-300 rounded-2xl font-bold ${
+                pathname === "/dashboard/profil" ? 'bg-forest text-chalk shadow-lg' : 'text-stone/60 hover:bg-chalk'
+              } ${isCollapsed ? 'justify-center w-14 h-14 p-0' : 'w-full px-4 py-3.5 gap-4'}`}
+            >
+              <User size={22}/>
+              {!isCollapsed && <span className="text-sm">Profil Saya</span>}
+            </Link>
+
 
             <button 
               onClick={() => setIsHelpOpen(true)}
@@ -131,6 +179,11 @@ export default function Sidebar({ logout }) {
                 className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-500 shadow-2xl border-4 border-white ${isMenuOpen ? 'bg-harvest text-forest rotate-45' : 'bg-forest text-chalk shadow-forest/40'}`}
               >
                 <Plus size={32} strokeWidth={2.5} />
+                {unreadChatCount > 0 && !isMenuOpen && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-6 h-6 flex items-center justify-center rounded-full border-2 border-white animate-pulse">
+                    {unreadChatCount}
+                  </span>
+                )}
               </button>
               <span className={`text-[10px] font-bold mt-1 tracking-tight transition-colors duration-300 ${isMenuOpen ? 'text-harvest' : 'text-forest'}`}>Menu</span>
             </div>
@@ -166,6 +219,22 @@ export default function Sidebar({ logout }) {
             </div>
 
             <div className="grid grid-cols-1 gap-3 overflow-y-auto max-h-[60vh] px-1 no-scrollbar">
+              <Link 
+                href="/dashboard/chat" 
+                onClick={() => setIsMenuOpen(false)}
+                className="relative flex items-center gap-3 p-4 rounded-2xl bg-white border border-clay/30 active:scale-95 transition-all shadow-sm overflow-hidden"
+              >
+                <div className="p-2 bg-chalk rounded-xl text-forest shrink-0 flex items-center justify-center">
+                  <MessageSquare size={22}/>
+                </div>
+                <span className="text-[11px] font-bold text-stone leading-tight tracking-tight">Obrolan</span>
+                {unreadChatCount > 0 && (
+                  <span className="ml-auto bg-red-500 text-white text-[10px] px-2 py-1 rounded-full font-bold">
+                    {unreadChatCount} Baru
+                  </span>
+                )}
+              </Link>
+
               <MobileMenuItem 
                 icon={<Store size={22}/>} 
                 label="Penjualan saya" 
@@ -222,7 +291,7 @@ export default function Sidebar({ logout }) {
           </div>
         </div>
       )}
- 
+
       {isHelpOpen && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center p-6">
           <div className="absolute inset-0 bg-forest/60 backdrop-blur-md" onClick={() => setIsHelpOpen(false)} />
