@@ -7,7 +7,7 @@ export default function ProductModal({ isOpen, onClose, user, supabase, onSucces
   const [uploading, setUploading] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
-    category: 'Beras',
+    category: 'Rice',
     price_per_kg: '',
     stock_kg: '',
     description: '',
@@ -20,14 +20,14 @@ export default function ProductModal({ isOpen, onClose, user, supabase, onSucces
     if (initialData) {
       setFormData({
         name: initialData.name || '',
-        category: initialData.category || 'Beras',
+        category: initialData.category || 'Rice',
         price_per_kg: initialData.price_per_kg || '',
         stock_kg: initialData.stock_kg || '',
         description: initialData.description || '',
         image_url: initialData.image_url || ''
       })
     } else { 
-      setFormData({ name: '', category: 'Beras', price_per_kg: '', stock_kg: '', description: '', image_url: '' })
+      setFormData({ name: '', category: 'Rice', price_per_kg: '', stock_kg: '', description: '', image_url: '' })
     }
   }, [initialData, isOpen])
 
@@ -54,7 +54,7 @@ export default function ProductModal({ isOpen, onClose, user, supabase, onSucces
 
       setFormData(prev => ({ ...prev, image_url: publicUrl }))
     } catch (err) {
-      alert("Gagal upload gambar: " + err.message)
+      alert("Image upload failed: " + err.message)
     } finally {
       setUploading(false)
     }
@@ -91,14 +91,14 @@ export default function ProductModal({ isOpen, onClose, user, supabase, onSucces
       if (onSuccess) onSuccess()
       onClose()
     } catch (err) {
-      alert("Terjadi kesalahan: " + err.message)
+      alert("Something went wrong: " + err.message)
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-0 md:p-4">
+    <div className="fixed inset-0 z-[200] flex items-end md:items-center justify-center p-0 md:p-4">
       <div 
         className="absolute inset-0 bg-forest/40 backdrop-blur-sm transition-opacity" 
         onClick={onClose} 
@@ -108,12 +108,12 @@ export default function ProductModal({ isOpen, onClose, user, supabase, onSucces
         
         <div className="bg-forest p-6 md:p-8 text-white relative shrink-0">
           <div className="flex justify-between items-center relative z-10">
-            <div>
-              <h2 className="text-xl md:text-2xl font-bold tracking-tight">
-                {initialData ? 'Ubah Data Produk' : 'Daftarkan Hasil Panen'}
+            <div className="text-left">
+              <h2 className="text-xl md:text-2xl font-bold tracking-tight italic uppercase">
+                {initialData ? 'Update Harvest' : 'Register Harvest'}
               </h2>
-              <p className="text-emerald-100/70 text-xs md:text-sm mt-1">
-                Lengkapi informasi detail komoditas Anda.
+              <p className="text-emerald-100/70 text-xs md:text-sm mt-1 lowercase italic">
+                Provide detail information about your global commodity.
               </p>
             </div>
             <button 
@@ -126,11 +126,11 @@ export default function ProductModal({ isOpen, onClose, user, supabase, onSucces
           <Leaf className="absolute -bottom-6 -right-6 text-white/5 w-24 h-24 md:w-32 md:h-32 rotate-12" />
         </div>
         
-        <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-6 overflow-y-auto no-scrollbar">
+        <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-6 overflow-y-auto no-scrollbar text-left">
           
           <div className="space-y-3">
             <label className="text-[10px] md:text-[11px] font-bold text-stone uppercase tracking-wider flex items-center gap-2 ml-1">
-              <ImageIcon size={13} className="text-harvest" /> Foto Komoditas
+              <ImageIcon size={13} className="text-harvest" /> Commodity Photo
             </label>
             
             <div 
@@ -151,7 +151,7 @@ export default function ProductModal({ isOpen, onClose, user, supabase, onSucces
                   ) : (
                     <>
                       <ImageIcon size={48} strokeWidth={1} />
-                      <p className="text-[10px] font-bold uppercase tracking-widest">Ketuk untuk Unggah</p>
+                      <p className="text-[10px] font-bold uppercase tracking-widest">Tap to upload</p>
                     </>
                   )}
                 </div>
@@ -168,7 +168,7 @@ export default function ProductModal({ isOpen, onClose, user, supabase, onSucces
 
           <div className="space-y-1.5">
             <label className="text-[10px] md:text-[11px] font-bold text-stone uppercase tracking-wider flex items-center gap-2 ml-1">
-              <Tag size={13} className="text-harvest" /> Nama Hasil Bumi
+              <Tag size={13} className="text-harvest" /> Commodity Name
             </label>
             <input 
               required 
@@ -176,26 +176,26 @@ export default function ProductModal({ isOpen, onClose, user, supabase, onSucces
               value={formData.name} 
               onChange={e => setFormData({...formData, name: e.target.value})} 
               className="w-full px-5 py-3.5 md:py-4 rounded-2xl bg-chalk/40 border border-stone/10 focus:border-forest/30 focus:ring-4 focus:ring-forest/5 outline-none transition text-sm text-slate-700 font-medium" 
-              placeholder="Contoh: Beras Mentik Susu" 
+              placeholder="e.g. Premium Basmati Rice" 
             />
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-[10px] md:text-[11px] font-bold text-stone uppercase tracking-wider flex items-center gap-2 ml-1">
-                <Database size={13} className="text-harvest" /> Jenis
+                <Database size={13} className="text-harvest" /> Category
               </label>
               <div className="relative">
                 <select 
                   value={formData.category} 
                   onChange={e => setFormData({...formData, category: e.target.value})} 
-                  className="w-full px-5 py-3.5 md:py-4 rounded-2xl bg-chalk/40 border border-stone/10 appearance-none focus:border-forest/30 outline-none transition text-sm text-slate-700 cursor-pointer font-semibold"
+                  className="w-full px-5 py-3.5 md:py-4 rounded-2xl bg-chalk/40 border border-stone/10 appearance-none focus:border-forest/30 outline-none transition text-sm text-slate-700 cursor-pointer font-bold"
                 >
-                  <option>Beras</option>
-                  <option>Sayuran</option>
-                  <option>Buah</option>
-                  <option>Rempah</option>
-                  <option>Lainnya</option>
+                  <option>Rice</option>
+                  <option>Vegetables</option>
+                  <option>Fruits</option>
+                  <option>Spices</option>
+                  <option>Others</option>
                 </select>
                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-stone/40 pointer-events-none" size={16} />
               </div>
@@ -203,7 +203,7 @@ export default function ProductModal({ isOpen, onClose, user, supabase, onSucces
 
             <div className="space-y-1.5">
               <label className="text-[10px] md:text-[11px] font-bold text-stone uppercase tracking-wider flex items-center gap-2 ml-1">
-                <Package size={13} className="text-harvest" /> Stok (kg)
+                <Package size={13} className="text-harvest" /> Stock (kg)
               </label>
               <input 
                 required 
@@ -218,17 +218,18 @@ export default function ProductModal({ isOpen, onClose, user, supabase, onSucces
 
           <div className="space-y-1.5">
             <label className="text-[10px] md:text-[11px] font-bold text-stone uppercase tracking-wider flex items-center gap-2 ml-1">
-              <DollarSign size={13} className="text-harvest" /> Harga Jual per kg
+              <DollarSign size={13} className="text-harvest" /> Global Price per kg
             </label>
             <div className="relative">
-              <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">Rp</span>
+              <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
               <input 
                 required 
                 type="number" 
+                step="0.01"
                 value={formData.price_per_kg} 
                 onChange={e => setFormData({...formData, price_per_kg: e.target.value})} 
                 className="w-full pl-12 pr-5 py-3.5 md:py-4 rounded-2xl bg-chalk/40 border border-stone/10 focus:border-forest/30 outline-none transition text-sm text-slate-700 font-bold" 
-                placeholder="0" 
+                placeholder="0.00" 
               />
             </div>
           </div>
@@ -239,7 +240,7 @@ export default function ProductModal({ isOpen, onClose, user, supabase, onSucces
               onClick={onClose}
               className="w-full md:flex-1 py-4 px-6 rounded-2xl text-stone font-bold text-sm hover:bg-chalk transition-all border border-stone/5"
             >
-              Batal
+              Cancel
             </button>
             <button 
               disabled={isSubmitting || uploading}
@@ -250,7 +251,7 @@ export default function ProductModal({ isOpen, onClose, user, supabase, onSucces
               ) : (
                 <Save size={18} />
               )}
-              <span>{initialData ? 'Simpan Perubahan' : 'Daftarkan Produk'}</span>
+              <span>{initialData ? 'Save Changes' : 'Register Product'}</span>
             </button>
           </div>
         </form>

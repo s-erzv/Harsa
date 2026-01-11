@@ -5,7 +5,7 @@ import {
   ShoppingCart, Search, Filter, MapPin, 
   ShieldCheck, Plus, Leaf, LayoutDashboard,
   ArrowRight, X, Trash2, ShoppingBag, Loader2,
-  Star, Check, Package, LogIn, Languages
+  Star, Check, Package, LogIn, Globe
 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -34,60 +34,12 @@ export default function Marketplace() {
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('Semua')
+  const [selectedCategory, setSelectedCategory] = useState('All')
   const [isCartOpen, setIsCartOpen] = useState(false)
-  const [lang, setLang] = useState('id')
   
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
 
-  const t = {
-    id: {
-      brand: "Pasar Harsa",
-      nav_dashboard: "Panel Kontrol",
-      nav_login: "Masuk Akun",
-      cart_title: "Keranjang Belanja",
-      cart_empty: "Keranjang Anda masih kosong",
-      cart_total: "Total Estimasi",
-      cart_checkout: "Lanjutkan Checkout",
-      hero_tag: "#RantaiPasokTerpercaya",
-      hero_title: "Dapatkan hasil bumi",
-      hero_accent: "langsung",
-      hero_suffix: "dari sumbernya.",
-      search_placeholder: "Cari Beras, Sayur, atau Buah...",
-      cat_label: "Kategori",
-      stock: "Stok",
-      price_label: "Harga / Kg",
-      detail: "Detail",
-      not_found: "Produk Tidak Ditemukan",
-      not_found_desc: "Kami tidak dapat menemukan hasil bumi yang sesuai dengan pencarian Anda.",
-      reset: "Atur Ulang Pencarian",
-      categories: ['Semua', 'Beras', 'Sayuran', 'Buah', 'Rempah', 'Lainnya']
-    },
-    en: {
-      brand: "Harsa Market",
-      nav_dashboard: "Dashboard",
-      nav_login: "Login",
-      cart_title: "Shopping Cart",
-      cart_empty: "Your cart is empty",
-      cart_total: "Estimated Total",
-      cart_checkout: "Proceed to Checkout",
-      hero_tag: "#TrustedSupplyChain",
-      hero_title: "Get agriculture products",
-      hero_accent: "directly",
-      hero_suffix: "from the source.",
-      search_placeholder: "Search Rice, Veggies, or Fruits...",
-      cat_label: "Category",
-      stock: "Stock",
-      price_label: "Price / Kg",
-      detail: "Details",
-      not_found: "Product Not Found",
-      not_found_desc: "We couldn't find any products matching your search criteria.",
-      reset: "Reset Search",
-      categories: ['All', 'Rice', 'Vegetables', 'Fruits', 'Spices', 'Others']
-    }
-  }
-
-  const content = lang === 'id' ? t.id : t.en;
+  const categories = ['All', 'Rice', 'Vegetables', 'Fruits', 'Spices', 'Others']
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -131,11 +83,11 @@ export default function Marketplace() {
   const cartTotal = cart.reduce((sum, item) => sum + (item.price_per_kg * item.quantity), 0)
 
   const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) 
-    const catIndex = t[lang].categories.indexOf(selectedCategory)
-    const originalCat = catIndex !== -1 ? t.id.categories[catIndex] : 'Semua'
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase())  
+    const catMap = { 'Rice': 'Beras', 'Vegetables': 'Sayuran', 'Fruits': 'Buah', 'Spices': 'Rempah', 'Others': 'Lainnya' }
+    const dbCategory = catMap[selectedCategory] || 'Semua'
     
-    const matchesCategory = selectedCategory === content.categories[0] || p.category === originalCat
+    const matchesCategory = selectedCategory === 'All' || p.category === dbCategory
     return matchesSearch && matchesCategory
   })
 
@@ -147,34 +99,31 @@ export default function Marketplace() {
             <div className="w-10 h-10 bg-forest rounded-xl flex items-center justify-center transition-transform group-hover:rotate-12">
               <Leaf size={20} className="text-chalk" />
             </div>
-            <span className="text-xl font-bold text-forest tracking-tighter">{content.brand}</span>
+            <span className="text-xl font-bold text-forest tracking-tighter italic">Harsa Market</span>
           </Link>
           
           <div className="flex items-center gap-2 md:gap-4"> 
-            <button 
-              onClick={() => setLang(lang === 'id' ? 'en' : 'id')}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-chalk border border-clay/50 text-[10px] font-bold text-forest hover:bg-clay/20 transition-all mr-2"
-            >
-              <Languages size={14} /> {lang.toUpperCase()}
-            </button>
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-chalk border border-clay/50 text-[10px] font-bold text-forest mr-2 tracking-widest">
+              <Globe size={14} /> Global Trade
+            </div>
 
             {user ? (
               <Link href="/dashboard">
-                <Button variant="ghost" className="hidden md:flex gap-2 text-stone hover:text-forest font-bold text-[11px] tracking-wider">
-                  <LayoutDashboard size={18} /> {content.nav_dashboard}
+                <Button variant="ghost" className="hidden md:flex gap-2 text-stone hover:text-forest font-bold text-[11px] tracking-widest">
+                  <LayoutDashboard size={18} /> Dashboard
                 </Button>
               </Link>
             ) : (
               <Link href="/login">
-                <Button variant="ghost" className="hidden md:flex gap-2 text-forest hover:bg-forest/5 font-bold border border-forest/10 rounded-xl text-[11px] tracking-wider">
-                  <LogIn size={18} /> {content.nav_login}
+                <Button variant="ghost" className="hidden md:flex gap-2 text-forest hover:bg-forest/5 font-bold border border-forest/10 rounded-xl text-[11px] tracking-widest">
+                  <LogIn size={18} /> Login
                 </Button>
               </Link>
             )}
 
             <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
               <SheetTrigger asChild>
-                <div className="relative p-3 bg-chalk rounded-2xl cursor-pointer group hover:bg-clay/20 transition-all">
+                <div className="relative p-3 bg-chalk rounded-2xl cursor-pointer group hover:bg-clay/20 transition-all shadow-sm">
                   <ShoppingCart size={22} className="text-forest" />
                   {cart.length > 0 && (
                     <span className="absolute -top-1 -right-1 w-5 h-5 bg-harvest text-forest text-[10px] flex items-center justify-center rounded-full font-black border-2 border-white animate-in zoom-in">
@@ -185,8 +134,8 @@ export default function Marketplace() {
               </SheetTrigger>
               <SheetContent className="w-full sm:max-w-md rounded-l-2xl border-clay bg-white flex flex-col font-raleway">
                 <SheetHeader className="pb-6 border-b border-stone-100">
-                  <SheetTitle className="text-2xl font-bold text-forest flex items-center gap-3">
-                    <ShoppingBag /> {content.cart_title}
+                  <SheetTitle className="text-2xl font-bold text-forest flex items-center gap-3 italic">
+                    <ShoppingBag /> Shopping Cart
                   </SheetTitle>
                 </SheetHeader>
                 
@@ -194,7 +143,7 @@ export default function Marketplace() {
                   {cart.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-stone opacity-40 italic">
                       <ShoppingCart size={48} className="mb-4" />
-                      <p>{content.cart_empty}</p>
+                      <p>Your cart is empty</p>
                     </div>
                   ) : (
                     cart.map((item) => (
@@ -206,10 +155,10 @@ export default function Marketplace() {
                             <Package className="text-forest/30" />
                           )}
                         </div>
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 text-left">
                           <p className="text-[10px] font-bold text-harvest tracking-widest">{item.category}</p>
                           <h4 className="font-bold text-forest truncate">{item.name}</h4>
-                          <p className="text-xs text-stone font-medium">Rp {item.price_per_kg.toLocaleString()} x {item.quantity}kg</p>
+                          <p className="text-xs text-stone font-medium italic">${(item.price_per_kg / 15600).toFixed(2)} x {item.quantity}kg</p>
                         </div>
                         <button onClick={() => removeFromCart(item.id)} className="p-2 text-stone/40 hover:text-red-500 self-center transition-colors">
                           <Trash2 size={18} />
@@ -222,11 +171,11 @@ export default function Marketplace() {
                 {cart.length > 0 && (
                   <SheetFooter className="pt-6 border-t border-stone-100 block space-y-4">
                     <div className="flex justify-between items-end">
-                      <span className="text-stone text-sm font-medium tracking-widest">{content.cart_total}</span>
-                      <span className="text-2xl font-bold text-forest tabular-nums">Rp {cartTotal.toLocaleString()}</span>
+                      <span className="text-stone text-[10px] font-bold tracking-[0.2em]">Estimated Total</span>
+                      <span className="text-2xl font-bold text-forest tabular-nums">${(cartTotal / 15600).toFixed(2)}</span>
                     </div>
-                    <Button className="w-full bg-forest hover:bg-forest/90 text-chalk h-14 rounded-2xl font-bold text-base shadow-xl shadow-forest/20">
-                      {content.cart_checkout}
+                    <Button className="w-full bg-forest hover:bg-forest/90 text-chalk h-14 rounded-2xl font-bold text-base shadow-xl shadow-forest/20 tracking-widest">
+                      Proceed to Checkout
                     </Button>
                   </SheetFooter>
                 )}
@@ -236,14 +185,14 @@ export default function Marketplace() {
         </div>
       </nav>
 
-      <main className="pt-32 pb-20 max-w-7xl mx-auto px-4 md:px-8">
+      <main className="pt-32 pb-20 max-w-7xl mx-auto px-4 md:px-8 text-left">
         <header className="mb-16">
           <div className="max-w-3xl">
-            <Badge variant="secondary" className="bg-clay/50 text-forest font-bold mb-4 px-4 py-1.5 rounded-full border-none">
-              {content.hero_tag}
+            <Badge variant="secondary" className="bg-clay/50 text-forest font-bold mb-4 px-4 py-1.5 rounded-full border-none text-[10px] tracking-widest">
+              #TrustedSupplyChain
             </Badge>
-            <h1 className="text-4xl md:text-6xl font-bold text-stone-900 mb-8 leading-[1.1] tracking-tight">
-              {content.hero_title} <span className="italic text-harvest underline decoration-clay underline-offset-8">{content.hero_accent}</span> {content.hero_suffix}
+            <h1 className="text-4xl md:text-6xl font-bold text-stone-900 mb-8 leading-[1.1] tracking-tighter italic">
+              Source harvest <span className="text-harvest underline decoration-clay underline-offset-8">directly</span> from the global origin.
             </h1>
             
             <div className="flex flex-col md:flex-row gap-3">
@@ -251,7 +200,7 @@ export default function Marketplace() {
                 <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-stone/40 group-focus-within:text-forest transition-colors" size={20} />
                 <input 
                   type="text" 
-                  placeholder={content.search_placeholder} 
+                  placeholder="Search rice, veggies, or fruits..." 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-14 pr-6 py-5 rounded-3xl bg-chalk border border-stone-100 focus:bg-white focus:ring-4 focus:ring-forest/5 outline-none transition-all text-sm font-medium"
@@ -260,12 +209,12 @@ export default function Marketplace() {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button className="px-10 py-8 bg-forest hover:bg-forest/90 text-white rounded-3xl font-bold text-sm shadow-xl shadow-forest/20 gap-3">
-                    <Filter size={18} /> {selectedCategory === content.categories[0] ? content.cat_label : selectedCategory}
+                  <Button className="px-10 py-8 bg-forest hover:bg-forest/90 text-white rounded-3xl font-bold text-sm shadow-xl shadow-forest/20 gap-3 tracking-widest">
+                    <Filter size={18} /> {selectedCategory === 'All' ? 'Category' : selectedCategory}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56 rounded-2xl p-2 font-raleway border-clay bg-white">
-                  {content.categories.map((cat) => (
+                  {categories.map((cat) => (
                     <DropdownMenuItem 
                       key={cat}
                       onClick={() => setSelectedCategory(cat)}
@@ -296,10 +245,10 @@ export default function Marketplace() {
             <div className="p-6 bg-chalk rounded-full">
               <Search size={40} className="text-stone/20" />
             </div>
-            <h3 className="text-xl font-bold text-forest">{content.not_found}</h3>
-            <p className="text-stone max-w-xs mx-auto">{content.not_found_desc}</p>
-            <Button variant="link" onClick={() => {setSearchTerm(''); setSelectedCategory(content.categories[0])}} className="text-harvest font-bold">
-              {content.reset}
+            <h3 className="text-xl font-bold text-forest">Product Not Found</h3>
+            <p className="text-stone max-w-xs mx-auto italic lowercase">We couldn't find any products matching your current search criteria.</p>
+            <Button variant="link" onClick={() => {setSearchTerm(''); setSelectedCategory('All')}} className="text-harvest font-bold tracking-widest text-[10px]">
+              Reset Filters
             </Button>
           </div>
         ) : (
@@ -308,7 +257,7 @@ export default function Marketplace() {
               <Card key={p.id} className="group border-none shadow-none bg-transparent">
                 <CardContent className="p-0">
                   <div className="relative aspect-[4/5] bg-chalk rounded-[2.5rem] overflow-hidden mb-6 border border-stone-50 transition-all duration-500 group-hover:shadow-2xl group-hover:shadow-forest/10 group-hover:-translate-y-2">
-                    <Badge className="absolute top-6 left-6 z-10 bg-white/90 backdrop-blur text-forest font-bold px-4 py-1.5 rounded-xl border-none shadow-sm">
+                    <Badge className="absolute top-6 left-6 z-10 bg-white/90 backdrop-blur text-forest font-bold px-4 py-1.5 rounded-xl border-none shadow-sm text-[10px] tracking-wider">
                       {p.category}
                     </Badge>
                     
@@ -322,8 +271,8 @@ export default function Marketplace() {
 
                     <div className="absolute bottom-6 inset-x-6 z-10 flex justify-between items-end">
                       <div className="space-y-2 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500">
-                         <Badge className="bg-forest text-chalk border-none font-bold">
-                           {content.stock} {p.stock_kg} kg
+                         <Badge className="bg-forest text-chalk border-none font-bold lowercase">
+                           stock: {p.stock_kg} kg
                          </Badge>
                       </div>
                       <button 
@@ -355,14 +304,14 @@ export default function Marketplace() {
                     
                     <div className="flex items-end justify-between pt-1">
                       <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-stone tracking-widest">{content.price_label}</span>
+                        <span className="text-[10px] font-bold text-stone tracking-widest">Price / kg</span>
                         <p className="text-forest font-bold text-2xl tracking-tighter tabular-nums">
-                          Rp{p.price_per_kg?.toLocaleString()}
+                          ${(p.price_per_kg / 15600).toFixed(2)}
                         </p>
                       </div>
                       <Link href={`/marketplace/${p.id}`}>
                         <Button variant="ghost" size="sm" className="rounded-full text-stone hover:text-forest group/btn font-bold text-[10px] tracking-widest">
-                          {content.detail} <ArrowRight size={14} className="ml-1 transition-transform group-hover/btn:translate-x-1" />
+                          Details <ArrowRight size={14} className="ml-1 transition-transform group-hover/btn:translate-x-1" />
                         </Button>
                       </Link>
                     </div>

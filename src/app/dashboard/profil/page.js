@@ -4,16 +4,16 @@ import { useAuth } from '@/context/AuthContext'
 import { 
   User, MapPin, ShieldCheck, Mail, Wallet, Loader2, 
   Link as LinkIcon, RefreshCcw, Award, Package, Star, 
-  ExternalLink, Edit2, ChevronRight, Camera, TrendingUp, DollarSign, X, Check
+  ExternalLink, Edit2, ChevronRight, Camera, TrendingUp, DollarSign, X, Check, Cpu
 } from 'lucide-react'
 import { createWalletClient, custom } from 'viem'
-import { polygonAmoy } from 'viem/chains'
+import { arbitrum } from 'viem/chains'
 import { Button } from "@/components/ui/button"
 
 export default function ProfilPage() {
   const { user, supabase } = useAuth()
   const [profile, setProfile] = useState(null)
-  const [stats, setStats] = useState({ total_products: 0, total_sales: 0, revenue: 0, rating: 4.8 })
+  const [stats, setStats] = useState({ total_products: 0, total_sales: 0, revenue: 0, rating: 4.9 })
   const [loading, setLoading] = useState(true)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -45,7 +45,7 @@ export default function ProfilPage() {
       setProfile(profRes.data) 
       setEditForm({
         full_name: profRes.data?.full_name || '',
-        location: profRes.data?.location || 'Jawa Barat, Indonesia',
+        location: profRes.data?.location || 'West Java, Indonesia',
         bio: profRes.data?.bio || ''
       })
 
@@ -58,7 +58,7 @@ export default function ProfilPage() {
         revenue: totalRevenue,
         rating: 4.9
       })
-      if (isManualSync) alert("Data berhasil diperbarui!")
+      if (isManualSync) alert("Ledger synced successfully!")
     } catch (err) { 
       console.error(err) 
     } finally { 
@@ -86,9 +86,9 @@ export default function ProfilPage() {
       const finalUrl = `${publicUrl}?t=${new Date().getTime()}`
       await supabase.from('profiles').update({ avatar_url: finalUrl }).eq('id', user.id)
       fetchProfileData()
-      alert("Foto profil berhasil diperbarui!")
+      alert("Profile picture updated!")
     } catch (error) { 
-      alert("Gagal upload: " + error.message) 
+      alert("Upload failed: " + error.message) 
     } finally { 
       setUploading(false) 
     }
@@ -106,10 +106,10 @@ export default function ProfilPage() {
   }
 
   const handleConnectWallet = async () => {
-    if (!window.ethereum) return alert("Instal MetaMask dulu ya Pak/Bu!")
+    if (!window.ethereum) return alert("Please install MetaMask first!")
     setIsConnecting(true)
     try {
-      const walletClient = createWalletClient({ chain: polygonAmoy, transport: custom(window.ethereum) })
+      const walletClient = createWalletClient({ chain: arbitrum, transport: custom(window.ethereum) })
       const [address] = await walletClient.requestAddresses()
       await supabase.from('profiles').update({ wallet_address: address }).eq('id', user.id)
       fetchProfileData()
@@ -117,102 +117,104 @@ export default function ProfilPage() {
   }
 
   if (loading && !profile) return (
-    <div className="h-screen flex items-center justify-center bg-chalk">
+    <div className="h-screen flex items-center justify-center bg-white">
       <Loader2 className="animate-spin text-forest" size={40} />
     </div>
   )
 
   return (
     <div className="min-h-screen bg-white font-raleway pb-32"> 
-      <main className="max-w-5xl mx-auto p-4 md:p-12 space-y-8 md:space-y-10">
-        <div className="relative bg-forest rounded-[2.5rem] md:rounded-[3.5rem] p-8 md:p-16 text-white overflow-hidden shadow-2xl">
-          <div className="relative z-10 flex flex-col md:flex-row items-center gap-6 md:gap-10">
+      <main className="max-w-5xl mx-auto p-4 md:p-12 space-y-8 md:space-y-12 text-left">
+        <div className="relative bg-forest rounded-[2.5rem] md:rounded-[4rem] p-8 md:p-20 text-white overflow-hidden shadow-2xl">
+          <div className="relative z-10 flex flex-col md:flex-row items-center gap-8 md:gap-12">
             <div className="relative group shrink-0">
-              <div className="w-32 h-32 md:w-40 md:h-40 bg-white/10 rounded-full flex items-center justify-center border-4 md:border-8 border-white/10 backdrop-blur-md overflow-hidden shadow-2xl transition-transform group-hover:scale-105">
+              <div className="w-32 h-32 md:w-44 md:h-44 bg-white/10 rounded-full flex items-center justify-center border-4 md:border-8 border-white/10 backdrop-blur-md overflow-hidden shadow-2xl transition-all duration-700 group-hover:scale-105">
                 {profile?.avatar_url ? (
                   <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
                 ) : (
                   <User className="text-emerald-100/30 w-16 h-16 md:w-20 md:h-20" />
                 )}
               </div>
-              <button onClick={() => fileInputRef.current.click()} disabled={uploading} className="absolute bottom-1 right-1 bg-harvest p-2.5 md:p-3 rounded-full border-4 border-forest shadow-lg hover:bg-clay transition-colors">
+              <button onClick={() => fileInputRef.current.click()} disabled={uploading} className="absolute bottom-1 right-1 bg-harvest p-3 md:p-4 rounded-full border-4 border-forest shadow-lg hover:bg-clay transition-all active:scale-90">
                 {uploading ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} className="text-forest" />}
               </button>
               <input type="file" ref={fileInputRef} onChange={handleUploadAvatar} className="hidden" accept="image/*" />
             </div>
             <div className="flex-1 space-y-4 md:space-y-6 text-center md:text-left">
               <div>
-                <h1 className="text-2xl md:text-4xl font-bold tracking-tight">{profile?.full_name}</h1>
-                <p className="text-emerald-100/60 mt-1 md:mt-2 font-medium text-sm md:text-base">{profile?.bio || "Petani Harsa Digital"}</p>
-                <div className="flex flex-wrap justify-center md:justify-start gap-2 mt-4 md:mt-6">
-                  <Badge icon={<ShieldCheck size={14} />} label="Terverifikasi" color="bg-white/10" />
-                  <Badge icon={<Star size={14} className="fill-yellow-400 text-yellow-400" />} label={`${stats.rating} Reputasi`} color="bg-white/10" />
+                <h1 className="text-3xl md:text-5xl font-bold tracking-tighter italic uppercase">{profile?.full_name}</h1>
+                <p className="text-emerald-100/60 mt-2 font-medium text-sm md:text-lg italic lowercase max-w-lg leading-relaxed">
+                  {profile?.bio || "digital merchant at harsa network"}
+                </p>
+                <div className="flex flex-wrap justify-center md:justify-start gap-3 mt-6">
+                  <Badge icon={<ShieldCheck size={14} />} label="Verified node" color="bg-white/10" />
+                  <Badge icon={<Star size={14} className="fill-yellow-400 text-yellow-400" />} label={`${stats.rating} reputation`} color="bg-white/10" />
                 </div>
               </div>
             </div>
           </div>
-          <ShieldCheck size={300} className="absolute -right-24 -bottom-24 text-white/5 rotate-12 pointer-events-none hidden md:block" />
+          <ShieldCheck size={400} className="absolute -right-32 -bottom-32 text-white/5 rotate-12 pointer-events-none hidden md:block" />
         </div>
  
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-          <StatCard icon={<Package className="text-forest w-5 h-5 md:w-6 md:h-6"/>} label="Produk" value={stats.total_products} />
-          <StatCard icon={<TrendingUp className="text-emerald-600 w-5 h-5 md:w-6 md:h-6"/>} label="Terjual" value={`${stats.total_sales} Kg`} />
-          <StatCard icon={<DollarSign className="text-harvest w-5 h-5 md:w-6 md:h-6"/>} label="Omzet" value={`Rp ${stats.revenue.toLocaleString('id-ID')}`} />
-          <StatCard icon={<Star className="text-yellow-500 fill-yellow-500 w-5 h-5 md:w-6 md:h-6"/>} label="Rating" value={stats.rating} />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+          <StatCard icon={<Package size={22} className="text-forest"/>} label="Inventory" value={`${stats.total_products} SKUs`} />
+          <StatCard icon={<TrendingUp size={22} className="text-emerald-600"/>} label="Total sold" value={`${stats.total_sales} kg`} />
+          <StatCard icon={<DollarSign size={22} className="text-harvest"/>} label="Revenue" value={`$${(stats.revenue/15600).toFixed(2)}`} />
+          <StatCard icon={<Star size={22} className="text-yellow-500 fill-yellow-500"/>} label="Rating" value={stats.rating} />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-          <div className="lg:col-span-2 space-y-6 md:space-y-8">
-            <section className="bg-white rounded-[2rem] md:rounded-[3rem] border border-clay p-6 md:p-10 shadow-sm space-y-8 md:space-y-10">
-              <h3 className="text-xs font-bold text-stone uppercase tracking-widest border-b border-clay pb-4">Data Akun</h3>
-              <div className="space-y-6">
-                <ProfileItem icon={<Mail className="text-forest w-5 h-5 md:w-6 md:h-6"/>} label="Email Terdaftar" value={user.email} />
-                <ProfileItem icon={<MapPin className="text-forest w-5 h-5 md:w-6 md:h-6"/>} label="Wilayah Distribusi" value={profile?.location || "Jawa Barat, Indonesia"} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 md:gap-12">
+          <div className="lg:col-span-2 space-y-8">
+            <section className="bg-white rounded-[2.5rem] border border-clay p-8 md:p-12 shadow-sm space-y-10">
+              <h3 className="text-[10px] font-bold text-stone uppercase tracking-[0.3em] border-b border-clay pb-6">Identity details</h3>
+              <div className="space-y-8">
+                <ProfileItem icon={<Mail size={22} className="text-forest"/>} label="Merchant email" value={user.email} />
+                <ProfileItem icon={<MapPin size={22} className="text-forest"/>} label="Global distribution" value={profile?.location || "West Java, Indonesia"} />
               </div>
             </section>
 
-          <section className="bg-chalk rounded-[2rem] md:rounded-[3rem] border border-clay p-6 md:p-10 relative overflow-hidden">
-            <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6 md:gap-8">
-              <div className="flex items-center gap-4 md:gap-6 self-start md:self-auto flex-1 min-w-0">
-                <div className="p-4 md:p-5 bg-white rounded-2xl md:rounded-3xl shadow-xl border border-clay/50 shrink-0">
-                  <Wallet className={`${profile?.wallet_address ? "text-forest" : "text-stone/20"} w-6 h-6 md:w-8 md:h-8`} />
+            <section className="bg-chalk/30 rounded-[2.5rem] border border-clay p-8 md:p-12 relative overflow-hidden group">
+              <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+                <div className="flex items-center gap-6 self-start md:self-auto flex-1 min-w-0">
+                  <div className="p-5 md:p-6 bg-white rounded-3xl shadow-xl border border-clay/50 shrink-0 group-hover:scale-105 transition-transform">
+                    <Wallet className={`${profile?.wallet_address ? "text-forest" : "text-stone/20"} w-8 h-8`} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-bold text-stone uppercase tracking-widest mb-1">Arbitrum L2 address</p>
+                    {profile?.wallet_address ? (
+                      <button onClick={() => handleCopy(profile.wallet_address)} className="group flex items-center gap-2 w-full" title="Click to copy">
+                        <p className="text-xs md:text-sm font-mono font-bold text-forest break-all text-left group-hover:text-emerald-600 transition-colors">{profile.wallet_address}</p>
+                        <div className="p-1.5 bg-forest/5 rounded-lg shrink-0">
+                          {copied ? <Check size={12} className="text-emerald-600" /> : <LinkIcon size={12} className="text-forest opacity-40 group-hover:opacity-100 transition-opacity" />}
+                        </div>
+                      </button>
+                    ) : ( <p className="text-xs md:text-sm font-bold text-stone/40 italic">not initialized</p> )}
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-bold text-stone uppercase tracking-widest">Dompet Blockchain</p>
-                  {profile?.wallet_address ? (
-                    <button onClick={() => handleCopy(profile.wallet_address)} className="group flex items-center gap-2 mt-1 w-full" title="Klik untuk salin">
-                      <p className="text-xs md:text-sm font-mono font-bold text-forest break-all text-left group-hover:text-emerald-600 transition-colors">{profile.wallet_address}</p>
-                      <div className="p-1.5 bg-forest/5 rounded-lg shrink-0">
-                        {copied ? <Check size={12} className="text-emerald-600" /> : <LinkIcon size={12} className="text-forest opacity-40 group-hover:opacity-100 transition-opacity" />}
-                      </div>
-                    </button>
-                  ) : ( <p className="text-xs md:text-sm font-bold text-stone/40 mt-1 italic">Belum Terhubung</p> )}
-                </div>
+                <button onClick={handleConnectWallet} disabled={isConnecting} className={`w-full md:w-auto px-8 py-4 rounded-2xl text-[10px] font-bold transition-all shadow-xl active:scale-95 uppercase tracking-widest ${profile?.wallet_address ? 'bg-white text-forest border border-clay hover:bg-clay' : 'bg-forest text-white shadow-forest/20'}`}>
+                  {isConnecting ? <Loader2 size={16} className="animate-spin" /> : <Cpu size={16} className="mr-2 inline" />}
+                  {profile?.wallet_address ? "Switch wallet" : "Connect node"}
+                </button>
               </div>
-              <button onClick={handleConnectWallet} disabled={isConnecting} className={`w-full md:w-auto px-8 py-3.5 md:py-4 rounded-xl md:rounded-2xl text-[10px] md:text-xs font-bold transition-all shadow-xl ${profile?.wallet_address ? 'bg-white text-forest border border-clay hover:bg-clay' : 'bg-forest text-white shadow-forest/20 active:scale-95'}`}>
-                {isConnecting ? <Loader2 size={16} className="animate-spin" /> : <LinkIcon size={16} className="mr-2 inline" />}
-                {profile?.wallet_address ? "Ganti Dompet" : "Hubungkan"}
-              </button>
-            </div>
-          </section>
+            </section>
           </div>
 
-          <aside className="space-y-4 md:space-y-6">
-            <div className="bg-white rounded-[2rem] md:rounded-[3rem] border border-clay p-6 md:p-8 shadow-sm">
-              <h4 className="text-[10px] font-bold text-stone uppercase tracking-widest mb-4 md:mb-6 px-2">Aksi Pengguna</h4>
-              <div className="space-y-1 md:space-y-2">
-                <ActionButton icon={<Edit2 size={16}/>} label="Ubah Profil" onClick={() => setIsEditModalOpen(true)} />
+          <aside className="space-y-6">
+            <div className="bg-white rounded-[2.5rem] border border-clay p-8 shadow-sm">
+              <h4 className="text-[10px] font-bold text-stone uppercase tracking-widest mb-8 px-2">Merchant actions</h4>
+              <div className="space-y-2">
+                <ActionButton icon={<Edit2 size={16}/>} label="Update profile" onClick={() => setIsEditModalOpen(true)} />
                 <ActionButton 
                   icon={syncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16}/>} 
-                  label={syncing ? "Sinkronisasi..." : "Sinkronisasi Data"} 
+                  label={syncing ? "Syncing node..." : "Manual sync"} 
                   onClick={() => fetchProfileData(true)} 
                   disabled={syncing}
                 />
                 <ActionButton 
                   icon={<ExternalLink size={16}/>} 
-                  label="Polygonscan" 
+                  label="Arbiscan" 
                   disabled={!profile?.wallet_address} 
-                  onClick={() => window.open(`https://amoy.polygonscan.com/address/${profile?.wallet_address}`, '_blank')}
+                  onClick={() => window.open(`https://arbiscan.io/address/${profile?.wallet_address}`, '_blank')}
                 />
               </div>
             </div>
@@ -221,26 +223,26 @@ export default function ProfilPage() {
       </main>
 
       {isEditModalOpen && (
-        <div className="fixed inset-0 z-[110] flex items-end md:items-center justify-center p-0 md:p-4 bg-forest/40 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-t-[2.5rem] md:rounded-[2.5rem] p-8 md:p-10 shadow-2xl animate-in slide-in-from-bottom md:zoom-in duration-300 overflow-y-auto max-h-[90vh]">
-            <div className="flex justify-between items-center mb-6 md:mb-8">
-              <h2 className="text-xl md:text-2xl font-bold text-forest uppercase tracking-tighter italic">Edit Profil</h2>
-              <button onClick={() => setIsEditModalOpen(false)} className="p-2 bg-slate-100 rounded-full text-stone"><X size={20}/></button>
+        <div className="fixed inset-0 z-[200] flex items-end md:items-center justify-center p-0 md:p-4 bg-forest/40 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-t-[2.5rem] md:rounded-[3rem] p-8 md:p-12 shadow-2xl animate-in slide-in-from-bottom md:zoom-in duration-300 overflow-y-auto max-h-[90vh]">
+            <div className="flex justify-between items-center mb-10">
+              <h2 className="text-xl font-bold text-forest uppercase tracking-tighter italic">Edit identity</h2>
+              <button onClick={() => setIsEditModalOpen(false)} className="p-2 bg-chalk rounded-full text-stone active:scale-90 transition-all"><X size={20}/></button>
             </div>
-            <form onSubmit={handleUpdateProfile} className="space-y-5 md:space-y-6">
-              <div className="space-y-2">
-                <label className="text-[9px] md:text-[10px] font-bold text-stone uppercase ml-2">Nama Lengkap</label>
+            <form onSubmit={handleUpdateProfile} className="space-y-6">
+              <div className="space-y-2 text-left">
+                <label className="text-[10px] font-bold text-stone uppercase ml-2 tracking-widest">Legal name</label>
                 <input required className="w-full p-4 bg-chalk rounded-2xl border border-clay focus:ring-4 focus:ring-forest/5 outline-none font-bold text-sm" value={editForm.full_name} onChange={e => setEditForm({...editForm, full_name: e.target.value})} />
               </div>
-              <div className="space-y-2">
-                <label className="text-[9px] md:text-[10px] font-bold text-stone uppercase ml-2">Lokasi Lahan</label>
+              <div className="space-y-2 text-left">
+                <label className="text-[10px] font-bold text-stone uppercase ml-2 tracking-widest">Base location</label>
                 <input className="w-full p-4 bg-chalk rounded-2xl border border-clay focus:ring-4 focus:ring-forest/5 outline-none font-bold text-sm" value={editForm.location} onChange={e => setEditForm({...editForm, location: e.target.value})} />
               </div>
-              <div className="space-y-2">
-                <label className="text-[9px] md:text-[10px] font-bold text-stone uppercase ml-2">Bio Singkat</label>
-                <textarea className="w-full p-4 bg-chalk rounded-2xl border border-clay focus:ring-4 focus:ring-forest/5 outline-none font-medium h-24 text-sm" value={editForm.bio} onChange={e => setEditForm({...editForm, bio: e.target.value})} />
+              <div className="space-y-2 text-left">
+                <label className="text-[10px] font-bold text-stone uppercase ml-2 tracking-widest">Short biography</label>
+                <textarea className="w-full p-4 bg-chalk rounded-2xl border border-clay focus:ring-4 focus:ring-forest/5 outline-none font-medium h-24 text-sm italic" value={editForm.bio} onChange={e => setEditForm({...editForm, bio: e.target.value})} />
               </div>
-              <Button type="submit" className="w-full bg-forest h-12 md:h-14 rounded-2xl font-bold shadow-xl shadow-forest/20 text-white">Simpan Perubahan</Button>
+              <Button type="submit" className="w-full bg-forest h-14 rounded-2xl font-bold shadow-xl shadow-forest/20 text-white uppercase tracking-widest mt-4 active:scale-95 transition-all">Save identity</Button>
             </form>
           </div>
         </div>
@@ -251,21 +253,23 @@ export default function ProfilPage() {
 
 function StatCard({ icon, label, value }) {
   return (
-    <div className="bg-white p-4 md:p-6 rounded-[1.5rem] md:rounded-[2.5rem] border border-clay shadow-sm flex flex-col items-center text-center gap-1 md:gap-2">
-      <div className="bg-chalk p-2 md:p-3 rounded-xl md:rounded-2xl mb-1">{icon}</div>
-      <p className="text-[8px] md:text-[10px] font-bold text-stone uppercase tracking-widest">{label}</p>
-      <p className="text-sm md:text-xl font-bold text-forest tracking-tight truncate w-full">{value}</p>
+    <div className="bg-white p-6 rounded-[2.5rem] border border-clay shadow-sm flex flex-col items-center text-center gap-3 group hover:shadow-xl transition-all duration-500">
+      <div className="bg-chalk p-4 rounded-2xl group-hover:bg-forest group-hover:text-chalk transition-colors">{icon}</div>
+      <div className="space-y-0.5">
+        <p className="text-[10px] font-bold text-stone uppercase tracking-widest opacity-60">{label}</p>
+        <p className="text-lg md:text-xl font-bold text-forest tracking-tighter italic tabular-nums">{value}</p>
+      </div>
     </div>
   )
 }
 
 function ProfileItem({ icon, label, value }) {
   return (
-    <div className="flex items-center gap-4 md:gap-6">
-      <div className="bg-chalk p-3 md:p-5 rounded-xl md:rounded-3xl border border-clay shrink-0">{icon}</div>
+    <div className="flex items-center gap-6">
+      <div className="bg-chalk p-4 md:p-5 rounded-[1.5rem] md:rounded-[2.5rem] border border-clay shrink-0">{icon}</div>
       <div className="min-w-0">
-        <p className="text-[9px] md:text-[10px] font-bold text-stone uppercase tracking-widest mb-0.5 md:mb-1">{label}</p>
-        <p className="text-xs md:text-sm font-bold text-slate-800 break-words">{value}</p>
+        <p className="text-[10px] font-bold text-stone uppercase tracking-widest mb-1">{label}</p>
+        <p className="text-sm md:text-base font-bold text-slate-800 break-words italic">{value}</p>
       </div>
     </div>
   )
@@ -273,7 +277,7 @@ function ProfileItem({ icon, label, value }) {
 
 function Badge({ icon, label, color }) {
   return (
-    <span className={`${color} text-[8px] md:text-[10px] font-bold uppercase px-3 md:px-4 py-1.5 md:py-2 rounded-full border border-white/5 backdrop-blur-sm flex items-center gap-1.5 md:gap-2`}>
+    <span className={`${color} text-[10px] font-bold uppercase px-4 py-2 rounded-full border border-white/5 backdrop-blur-sm flex items-center gap-2 italic tracking-widest`}>
       {icon} {label}
     </span>
   )
@@ -281,11 +285,12 @@ function Badge({ icon, label, color }) {
 
 function ActionButton({ icon, label, onClick, disabled }) {
   return (
-    <button onClick={onClick} disabled={disabled} className="w-full flex items-center justify-between p-3 md:p-4 rounded-xl md:rounded-2xl border border-transparent hover:border-clay hover:bg-chalk transition-all text-stone hover:text-forest disabled:opacity-30">
-      <div className="flex items-center gap-3 font-bold text-[9px] md:text-[11px] uppercase tracking-wider">
-        {icon} <span className="truncate">{label}</span>
+    <button onClick={onClick} disabled={disabled} className="w-full flex items-center justify-between p-4 rounded-2xl border border-transparent hover:border-clay hover:bg-chalk transition-all text-stone hover:text-forest disabled:opacity-30 group">
+      <div className="flex items-center gap-3 font-bold text-[11px] uppercase tracking-[0.1em]">
+        <span className="opacity-40 group-hover:opacity-100 transition-opacity">{icon}</span>
+        <span className="truncate italic">{label}</span>
       </div>
-      <ChevronRight size={14} className="shrink-0" />
+      <ChevronRight size={14} className="shrink-0 opacity-20 group-hover:opacity-100 transition-opacity" />
     </button>
   )
 }
