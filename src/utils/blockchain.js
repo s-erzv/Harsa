@@ -7,12 +7,11 @@ import {
   http,
   parseEther,
   decodeEventLog,
-  keccak256,
   encodeEventTopics
 } from "viem"
 import { polygonAmoy } from "viem/chains"
 import abi from "./escrowAbi.json"
-
+ 
 export const contractAddress = process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS
 
 export const publicClient = createPublicClient({
@@ -29,101 +28,108 @@ export const getWalletClient = async () => {
   }
   throw new Error("Metamask tidak ditemukan")
 }
-export const buyProduct = async (sellerAddress, productId, amountKg, priceInPol) => {
+
+/** 
+ * @param {Array} items - Array of objects [{ sellerAddress, priceInPol, sku }]
+ */
+export const checkout = async (items) => {
   const walletClient = await getWalletClient()
   const [account] = await walletClient.getAddresses()
-
-  if (account.toLowerCase() === sellerAddress.toLowerCase()) {
-    throw new Error("Tidak bisa membeli produk sendiri")
-  }
-
-  const totalValue = parseEther((Number(priceInPol) * Number(amountKg)).toFixed(18))
+ 
+  const sellers = items.map(item => item.sellerAddress)
+  const skus = items.map(item => item.sku)
+  const amounts = items.map(item => parseEther(item.priceInPol.toString()))
+ 
+  const totalValue = amounts.reduce((acc, curr) => acc + curr, 0n)
 
   const hash = await walletClient.writeContract({
     address: contractAddress,
     abi,
-    functionName: "createTransaction",
-    args: [sellerAddress, productId],
+    functionName: "checkout",
+    args: [sellers, amounts, skus],
     account,
     value: totalValue,
-    gas: 250000n,  
   })
 
   const receipt = await publicClient.waitForTransactionReceipt({ hash })
-
-  let blockchainId = null
-
-  const eventTopics = encodeEventTopics({
-    abi,
-    eventName: 'TransactionCreated',
-  })
+ 
+  const blockchainIds = []
+  const eventTopics = encodeEventTopics({ abi, eventName: 'TransactionCreated' })
 
   for (const log of receipt.logs) {
-    if (
-      log.address.toLowerCase() === contractAddress.toLowerCase() && 
-      log.topics[0] === eventTopics[0]
-    ) {
+    if (log.address.toLowerCase() === contractAddress.toLowerCase() && log.topics[0] === eventTopics[0]) {
       try {
-        const decoded = decodeEventLog({
-          abi,
-          data: log.data,
-          topics: log.topics,
+        const decoded = decodeEventLog({ abi, data: log.data, topics: log.topics })
+        blockchainIds.push({
+          txId: decoded.args.txId.toString(),
+          seller: decoded.args.seller,
+          amount: decoded.args.amount.toString()
         })
-
-        if (decoded.eventName === "TransactionCreated") {
-          blockchainId = decoded.args.txId.toString()
-          console.log("Berhasil ambil Blockchain ID:", blockchainId)
-          break
-        }
       } catch (e) {
         console.error("Gagal decode log:", e)
       }
     }
   }
 
-  if (!blockchainId) {
-    throw new Error("Gagal mengambil ID dari blockchain. Cek riwayat transaksi.")
-  }
-
-  return { hash, blockchainId }
+  return { hash, blockchainIds }
 }
-
-export const confirmReceipt = async (blockchainTxId, supabaseTxId, supabase) => {
+ 
+export const proposeNegotiation = async (blockchainTxId, proposedPriceInPol) => {
   const walletClient = await getWalletClient()
   const [account] = await walletClient.getAddresses()
 
-  console.log("🔍 Memulai Konfirmasi:", {
-    txId: blockchainTxId,
-    userWallet: account
+  const hash = await walletClient.writeContract({
+    address: contractAddress,
+    abi,
+    functionName: "proposeNegotiation",
+    args: [BigInt(blockchainTxId), parseEther(proposedPriceInPol.toString())],
+    account,
   })
 
-  try {
-    const hash = await walletClient.writeContract({
-      address: contractAddress,
-      abi,
-      functionName: "confirmDelivery",
-      args: [BigInt(blockchainTxId)], 
-      account,
-      gas: 300000n, 
-    })
+  return await publicClient.waitForTransactionReceipt({ hash })
+}
+ 
+export const respondToNegotiation = async (blockchainTxId, isAccepted) => {
+  const walletClient = await getWalletClient()
+  const [account] = await walletClient.getAddresses()
 
-    console.log("Menunggu Konfirmasi Blockchain...", hash)
-    const receipt = await publicClient.waitForTransactionReceipt({ hash })
+  const hash = await walletClient.writeContract({
+    address: contractAddress,
+    abi,
+    functionName: "respondToNegotiation",
+    args: [BigInt(blockchainTxId), isAccepted],
+    account,
+  })
 
-    if (receipt.status !== "success") {
-       throw new Error("Blockchain Reverted. Pastikan Anda adalah pembeli dan dana belum pernah dicairkan.")
-    }
+  return await publicClient.waitForTransactionReceipt({ hash })
+}
+ 
+export const confirmDelivery = async (blockchainTxId) => {
+  const walletClient = await getWalletClient()
+  const [account] = await walletClient.getAddresses()
 
-    const { error } = await supabase
-      .from("transactions")
-      .update({ status: "COMPLETED" })
-      .eq("id", supabaseTxId)
+  const hash = await walletClient.writeContract({
+    address: contractAddress,
+    abi,
+    functionName: "confirmDelivery",
+    args: [BigInt(blockchainTxId)],
+    account,
+  })
 
-    if (error) throw error
+  return await publicClient.waitForTransactionReceipt({ hash })
+}
+ 
+export const cancelTransaction = async (blockchainTxId) => {
+  const walletClient = await getWalletClient()
+  const [account] = await walletClient.getAddresses()
 
-    return { success: true, hash }
-  } catch (err) {
-    console.error("Gagal cairkan dana detail:", err)
-    throw err
-  }
+  const hash = await walletClient.writeContract({
+    address: contractAddress,
+    abi,
+    functionName: "cancelTransaction",
+    args: [BigInt(blockchainTxId)],
+    account,
+  })
+
+  return await publicClient.waitForTransactionReceipt({ hash })
 }
