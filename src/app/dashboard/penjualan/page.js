@@ -66,7 +66,7 @@ export default function PenjualanPage() {
         <TabsList className="bg-slate-100 p-1 rounded-2xl mb-10 inline-flex h-auto">
           <TabsTrigger value="AWAITING_DELIVERY" className="rounded-xl px-6 py-2 text-xs font-bold data-[state=active]:bg-forest data-[state=active]:text-white">To Ship</TabsTrigger>
           <TabsTrigger value="SHIPPED" className="rounded-xl px-6 py-2 text-xs font-bold data-[state=active]:bg-forest data-[state=active]:text-white">Shipped</TabsTrigger>
-          <TabsTrigger value="COMPLETE" className="rounded-xl px-6 py-2 text-xs font-bold data-[state=active]:bg-forest data-[state=active]:text-white">COMPLETE</TabsTrigger>
+          <TabsTrigger value="COMPLETE" className="rounded-xl px-6 py-2 text-xs font-bold data-[state=active]:bg-forest data-[state=active]:text-white">Completed</TabsTrigger>
         </TabsList>
 
         {['AWAITING_DELIVERY', 'SHIPPED', 'COMPLETE'].map(status => (

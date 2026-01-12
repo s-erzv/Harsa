@@ -19,17 +19,22 @@ export const contractAddress = process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS
 
 export const publicClient = createPublicClient({
   chain: polygonAmoy,
-  transport: http(),
+  transport: http("https://rpc-amoy.polygon.technology"),
 })
 
 export const getWalletClient = async () => {
   if (typeof window !== "undefined" && window.ethereum) {
-    return createWalletClient({
-      chain: polygonAmoy,
-      transport: custom(window.ethereum),
-    })
+    try {
+      await window.ethereum.request({ method: 'eth_requestAccounts' });
+      return createWalletClient({
+        chain: polygonAmoy,
+        transport: custom(window.ethereum),
+      })
+    } catch (error) {
+      throw new Error("User menolak koneksi wallet")
+    }
   }
-  throw new Error("Metamask not found")
+  throw new Error("Metamask tidak terdeteksi")
 }
 
 export const checkout = async (items) => {
@@ -39,7 +44,9 @@ export const checkout = async (items) => {
   const sellers = items.map(item => getAddress(item.sellerAddress))
   const skus = items.map(item => item.sku)
    
-  const amounts = items.map(item => parseEther(item.priceInPol.toString()))
+  const amounts = items.map(item => 
+    parseEther((Number(item.priceInPol) * Number(item.amountKg || 1)).toFixed(18))
+  )
   
   const totalValue = amounts.reduce((acc, curr) => acc + curr, 0n)
  
@@ -50,7 +57,6 @@ export const checkout = async (items) => {
     args: [sellers, amounts, skus],
     account,
     value: totalValue,
-    gas: 1500000n, 
   })
 
   const receipt = await publicClient.waitForTransactionReceipt({ hash })
@@ -75,37 +81,7 @@ export const checkout = async (items) => {
 
   return { hash, blockchainIds }
 }
- 
-export const proposeNegotiation = async (blockchainTxId, proposedPriceInPol) => {
-  const walletClient = await getWalletClient()
-  const [account] = await walletClient.getAddresses()
 
-  const hash = await walletClient.writeContract({
-    address: contractAddress,
-    abi,
-    functionName: "proposeNegotiation",
-    args: [BigInt(blockchainTxId), parseEther(proposedPriceInPol.toString())],
-    account,
-  })
-
-  return await publicClient.waitForTransactionReceipt({ hash })
-}
- 
-export const respondToNegotiation = async (blockchainTxId, isAccepted) => {
-  const walletClient = await getWalletClient()
-  const [account] = await walletClient.getAddresses()
-
-  const hash = await walletClient.writeContract({
-    address: contractAddress,
-    abi,
-    functionName: "respondToNegotiation",
-    args: [BigInt(blockchainTxId), isAccepted],
-    account,
-  })
-
-  return await publicClient.waitForTransactionReceipt({ hash })
-}
- 
 export const confirmDelivery = async (blockchainTxId) => {
   const walletClient = await getWalletClient()
   const [account] = await walletClient.getAddresses()
@@ -117,7 +93,6 @@ export const confirmDelivery = async (blockchainTxId) => {
     args: [BigInt(blockchainTxId)],
     account,
   })
-
   return await publicClient.waitForTransactionReceipt({ hash })
 }
  
