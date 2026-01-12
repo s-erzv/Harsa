@@ -66,10 +66,10 @@ export default function PenjualanPage() {
         <TabsList className="bg-slate-100 p-1 rounded-2xl mb-10 inline-flex h-auto">
           <TabsTrigger value="AWAITING_DELIVERY" className="rounded-xl px-6 py-2 text-xs font-bold data-[state=active]:bg-forest data-[state=active]:text-white">To Ship</TabsTrigger>
           <TabsTrigger value="SHIPPED" className="rounded-xl px-6 py-2 text-xs font-bold data-[state=active]:bg-forest data-[state=active]:text-white">Shipped</TabsTrigger>
-          <TabsTrigger value="COMPLETED" className="rounded-xl px-6 py-2 text-xs font-bold data-[state=active]:bg-forest data-[state=active]:text-white">Completed</TabsTrigger>
+          <TabsTrigger value="COMPLETE" className="rounded-xl px-6 py-2 text-xs font-bold data-[state=active]:bg-forest data-[state=active]:text-white">COMPLETE</TabsTrigger>
         </TabsList>
 
-        {['AWAITING_DELIVERY', 'SHIPPED', 'COMPLETED'].map(status => (
+        {['AWAITING_DELIVERY', 'SHIPPED', 'COMPLETE'].map(status => (
           <TabsContent key={status} value={status}>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {sales.filter(s => s.status === status).map(tx => (

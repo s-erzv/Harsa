@@ -38,10 +38,10 @@ export default function PetaniProfile() {
             .eq('seller_id', id)
             .order('created_at', { ascending: false }),
           supabase.from('products').select('*').eq('seller_id', id),
-          supabase.from('transactions').select('id', { count: 'exact' }).eq('seller_id', id).eq('status', 'COMPLETED')
+          supabase.from('transactions').select('id', { count: 'exact' }).eq('seller_id', id).eq('status', 'COMPLETE')
         ])
         
-        setProfile({ ...profRes.data, total_completed_tx: txCount.count || 0 })
+        setProfile({ ...profRes.data, total_COMPLETE_tx: txCount.count || 0 })
         setReviews(revRes.data || [])
         setProducts(prodRes.data || [])
       } catch (err) { 
@@ -181,7 +181,7 @@ export default function PetaniProfile() {
                     </div>
                     <span className="text-xs font-bold text-stone uppercase tracking-tighter leading-tight">Successful Sales</span>
                   </div>
-                  <span className="text-3xl font-bold text-forest tabular-nums italic">{profile?.total_completed_tx || 0}</span>
+                  <span className="text-3xl font-bold text-forest tabular-nums italic">{profile?.total_COMPLETE_tx || 0}</span>
                 </div>
 
                 <div className="pt-6 space-y-3">

@@ -34,7 +34,7 @@ export default function SalesAnalytics() {
         .from('transactions')
         .select('*, product:products(name), buyer:profiles!transactions_buyer_id_fkey(full_name)')
         .eq('seller_id', user.id)
-        .eq('status', 'COMPLETED')
+        .eq('status', 'COMPLETE')
         .order('created_at', { ascending: true })
 
       if (error) throw error

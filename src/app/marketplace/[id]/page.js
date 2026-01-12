@@ -2,12 +2,11 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
-import { buyProduct } from '@/utils/blockchain'
+import { checkout, getPolPrice } from '@/utils/blockchain'
 import ChatWindow from '@/components/ChatWindow'
 import { 
   ShieldCheck, ArrowLeft, ShoppingBag, Loader2, 
-  Info, CheckCircle2, Plus, Minus, Star, Timer, 
-  MessageSquare, X 
+  Plus, Minus, MessageSquare, X 
 } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from "@/components/ui/button"
@@ -63,47 +62,57 @@ export default function ProductDetail() {
   }, [id, supabase])
 
   const handleProcessPurchase = async () => {
-    if (!product || !product.profiles?.wallet_address) return alert("Invalid seller data")
-    if (buyAmount > product.stock_kg) return alert("Insufficient stock")
-    if (!user) return alert("Please login first")
+    if (!product || !product.profiles?.wallet_address) return alert("Invalid seller data");
+    if (buyAmount > product.stock_kg) return alert("Insufficient stock available");
+    if (!user) return alert("Please login to continue");
 
-    setIsProcessing(true)
+    setIsProcessing(true);
+
     try { 
-      const dummyPriceInPol = 0.001 
-      const { hash, blockchainId } = await buyProduct(
-        product.profiles.wallet_address,  
-        product.id,                      
-        buyAmount,                       
-        dummyPriceInPol                  
-      );
+      const currentPolPriceInUsd = await getPolPrice();
+      const totalPriceInUsd = Number(product.price_per_kg * buyAmount);
+      const totalPolToPay = (totalPriceInUsd / currentPolPriceInUsd).toFixed(6);
 
-      const { error } = await supabase.rpc('handle_buy_product', {
+      const items = [{
+        sellerAddress: product.profiles.wallet_address,
+        priceInPol: totalPolToPay,  
+        sku: product.id            
+      }];
+
+      const { hash, blockchainIds } = await checkout(items);
+      const bId = blockchainIds[0].txId;
+
+     const { error } = await supabase.rpc('handle_buy_product', {
         p_transaction_id: crypto.randomUUID(), 
         p_product_id: product.id,
         p_amount_kg: buyAmount,
-        p_blockchain_id: blockchainId.toString(),  
+        p_blockchain_id: parseInt(bId), 
         p_tx_hash: hash,
         p_buyer_id: user.id,
         p_seller_id: product.seller_id,
-        p_total_price: Number(product.price_per_kg * buyAmount),
-        p_amount_paid: Number(dummyPriceInPol * buyAmount)
+        p_total_price: totalPriceInUsd,      
+        p_amount_paid: Number(totalPolToPay)
       });
 
       if (error) throw error;
+
       await supabase.from('notifications').insert({
         user_id: product.seller_id,
         title: 'New Order Received!',
-        message: `Someone just bought ${buyAmount} kg of ${product.name}.`,
+        message: `${buyAmount} kg of ${product.name} has been paid.`,
         type: 'INFO'
-      })
-      alert("Success! Stock updated")
-      router.push('/dashboard/transaksi')
+      });
+
+      alert(`Success! Paid ${totalPolToPay} POL (Equivalent to $${totalPriceInUsd.toLocaleString()})`);
+      router.push('/dashboard/transaksi');
+
     } catch (err) {
-      alert(err.message || "Transaction failed")
+      console.error("Detail Error:", err);
+      alert(err.message || "Transaction failed to process");
     } finally {
-      setIsProcessing(false)
+      setIsProcessing(false);
     }
-  }
+  };
 
   if (loading) return (
     <div className="h-screen flex flex-col items-center justify-center bg-white"><Loader2 className="animate-spin text-forest" size={40} /></div>
@@ -159,15 +168,15 @@ export default function ProductDetail() {
             </div>
 
             <div className="bg-chalk p-6 rounded-[2.5rem] border border-stone-100 space-y-6">
-              <p className="text-3xl font-bold text-forest">Rp {product.price_per_kg?.toLocaleString()}</p>
+              <p className="text-3xl font-bold text-forest">${product.price_per_kg?.toLocaleString()}</p>
               <div className="flex items-center justify-between bg-white p-2 rounded-2xl border border-clay">
                 <button onClick={() => setBuyAmount(Math.max(1, buyAmount - 1))} className="w-12 h-12 bg-chalk rounded-xl active:scale-90"><Minus size={20}/></button>
                 <span className="font-bold text-xl">{buyAmount} kg</span>
                 <button onClick={() => setBuyAmount(Math.min(product.stock_kg, buyAmount + 1))} className="w-12 h-12 bg-chalk rounded-xl active:scale-90"><Plus size={20}/></button>
               </div>
               <div className="pt-4 flex justify-between items-end border-t border-stone-100 font-bold">
-                <span className="text-stone text-xs uppercase">Total</span>
-                <span className="text-2xl text-forest">Rp {(product.price_per_kg * buyAmount).toLocaleString()}</span>
+                <span className="text-stone text-xs uppercase">Total Amount</span>
+                <span className="text-2xl text-forest">${(product.price_per_kg * buyAmount).toLocaleString()}</span>
               </div>
             </div>
 

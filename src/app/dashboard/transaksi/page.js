@@ -69,7 +69,7 @@ export default function PesananSaya() {
         account,
         gas: 500000n
       })
-      await supabase.from('transactions').update({ status: 'COMPLETED' }).eq('id', txId)
+      await supabase.from('transactions').update({ status: 'COMPLETE' }).eq('id', txId)
       alert("Success! Funds forwarded to farmer.")
       fetchPurchases()
     } catch (err) { alert("Confirmation failed: " + err.message) }
@@ -89,7 +89,7 @@ export default function PesananSaya() {
           <Card key={tx.id} className="rounded-[2.5rem] border-slate-100 shadow-sm hover:shadow-md transition-all overflow-hidden bg-white">
             <CardHeader className="p-6 pb-2">
               <Badge className={`w-fit mb-3 border-none font-bold px-3 py-1 rounded-full ${
-                tx.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700' : 'bg-orange-50 text-orange-700'
+                tx.status === 'COMPLETE' ? 'bg-emerald-50 text-emerald-700' : 'bg-orange-50 text-orange-700'
               }`}>
                 {tx.status.replace('_', ' ')}
               </Badge>

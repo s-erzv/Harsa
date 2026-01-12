@@ -37,7 +37,7 @@ export default function ProfilPage() {
         supabase.from('transactions')
           .select('total_price, amount_kg')
           .eq('seller_id', user.id)
-          .eq('status', 'COMPLETED')
+          .eq('status', 'COMPLETE')
       ])
       
       if (profRes.error) throw profRes.error;

@@ -7,11 +7,14 @@ import {
   http,
   parseEther,
   decodeEventLog,
-  encodeEventTopics
+  encodeEventTopics,
+  getAddress  
 } from "viem"
-import { polygonAmoy } from "viem/chains"
-import abi from "./escrowAbi.json"
- 
+import { polygonAmoy } from "viem/chains" 
+import abiData from "./escrowAbi.json"
+
+const abi = abiData.abi || abiData 
+
 export const contractAddress = process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS
 
 export const publicClient = createPublicClient({
@@ -26,22 +29,20 @@ export const getWalletClient = async () => {
       transport: custom(window.ethereum),
     })
   }
-  throw new Error("Metamask tidak ditemukan")
+  throw new Error("Metamask not found")
 }
 
-/** 
- * @param {Array} items - Array of objects [{ sellerAddress, priceInPol, sku }]
- */
 export const checkout = async (items) => {
   const walletClient = await getWalletClient()
   const [account] = await walletClient.getAddresses()
- 
-  const sellers = items.map(item => item.sellerAddress)
+  
+  const sellers = items.map(item => getAddress(item.sellerAddress))
   const skus = items.map(item => item.sku)
+   
   const amounts = items.map(item => parseEther(item.priceInPol.toString()))
- 
+  
   const totalValue = amounts.reduce((acc, curr) => acc + curr, 0n)
-
+ 
   const hash = await walletClient.writeContract({
     address: contractAddress,
     abi,
@@ -49,6 +50,7 @@ export const checkout = async (items) => {
     args: [sellers, amounts, skus],
     account,
     value: totalValue,
+    gas: 1500000n, 
   })
 
   const receipt = await publicClient.waitForTransactionReceipt({ hash })
@@ -66,7 +68,7 @@ export const checkout = async (items) => {
           amount: decoded.args.amount.toString()
         })
       } catch (e) {
-        console.error("Gagal decode log:", e)
+        console.error("Failed to decode log:", e)
       }
     }
   }
@@ -133,3 +135,16 @@ export const cancelTransaction = async (blockchainTxId) => {
 
   return await publicClient.waitForTransactionReceipt({ hash })
 }
+
+export const getPolPrice = async () => {
+  try {
+    const response = await fetch(
+      "https://api.coingecko.com/api/v3/simple/price?ids=polygon-ecosystem-token&vs_currencies=usd"
+    );
+    const data = await response.json();
+    return data["polygon-ecosystem-token"].usd; 
+  } catch (error) {
+    console.error("Failed to fetch POL price:", error);
+    throw new Error("Unable to get current market rates.");
+  }
+};
