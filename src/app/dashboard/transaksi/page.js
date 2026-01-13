@@ -84,22 +84,31 @@ export default function PesananSaya() {
   };
 
   const handleConfirmReceipt = async (tx) => {
-    setConfirmingId(tx.id)
+    setConfirmingId(tx.id);
     try {
-      if (!tx.blockchain_id) throw new Error("Blockchain ID not found.");
-      const receipt = await confirmDelivery(tx.blockchain_id);
-      if (receipt.status === 'success') {
-        const { error } = await supabase.from('transactions').update({ status: 'COMPLETE' }).eq('id', tx.id);
-        if (error) throw error;
-        alert("Node Synchronized! Funds released.");
+      // Panggil API Route (Admin yang bayar Gas)
+      const response = await fetch('/api/confirm-delivery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blockchainTxId: tx.blockchain_id })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Update Supabase seperti biasa
+        await supabase.from('transactions').update({ status: 'COMPLETE' }).eq('id', tx.id);
+        alert("Verified by Admin! Funds released to Farmer without user gas fee.");
         fetchPurchases();
+      } else {
+        throw new Error(result.error);
       }
-    } catch (err) { 
-      alert("Verification Failed: " + (err.shortMessage || err.message));
+    } catch (err) {
+      alert("System Error: " + err.message);
     } finally {
       setConfirmingId(null);
     }
-  }
+  };
 
   if (loading) return (
     <div className="h-screen flex items-center justify-center bg-white">

@@ -96,7 +96,7 @@ contract HarsaEscrow {
 
     function confirmDelivery(uint256 _txId) public {
         Transaction storage txn = transactions[_txId];
-        require(msg.sender == txn.buyer, "Only buyer can confirm");
+        require(msg.sender == txn.buyer || msg.sender == owner, "Unauthorized");
         require(txn.status == State.AWAITING_DELIVERY, "Invalid status");
 
         txn.status = State.COMPLETE;

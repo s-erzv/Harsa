@@ -4,12 +4,14 @@ import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { 
   ShieldCheck, ArrowLeft, Download, ExternalLink, Loader2, 
-  Cpu, QrCode, Printer, MapPin, Truck, Navigation, Clock, Map as MapIcon
+  Cpu, QrCode, Printer, MapPin, Truck, Navigation, Clock, Map as MapIcon,
+  Home, Flag
 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { QRCodeSVG } from 'qrcode.react'
 import Script from 'next/script'
+import { renderToStaticMarkup } from 'react-dom/server'
 
 export default function DetailTransaksiPage() {
   const { id } = useParams()
@@ -22,6 +24,18 @@ export default function DetailTransaksiPage() {
   
   const mapRef = useRef(null)
   const [googleReady, setGoogleReady] = useState(false)
+
+  const getIconUrl = (iconComponent, color) => {
+    const svgString = renderToStaticMarkup(
+      React.cloneElement(iconComponent, { 
+        size: 32, 
+        stroke: color, 
+        fill: "white", 
+        strokeWidth: 2.5 
+      })
+    );
+    return `data:image/svg+xml;base64,${btoa(svgString)}`;
+  };
 
   useEffect(() => { if (id) fetchDetail() }, [id])
 
@@ -62,8 +76,12 @@ export default function DetailTransaksiPage() {
       new window.google.maps.Marker({
         position: sellerPos,
         map,
-        label: { text: "🏠", fontSize: "16px" },
-        title: "Seller (Origin)"
+        icon: {
+          url: getIconUrl(<Home />, "#22493A"),
+          scaledSize: new window.google.maps.Size(32, 32),
+          anchor: new window.google.maps.Point(16, 32)
+        },
+        title: "Origin Node"
       })
       bounds.extend(sellerPos)
 
@@ -71,13 +89,16 @@ export default function DetailTransaksiPage() {
       new window.google.maps.Marker({
         position: buyerPos,
         map,
-        label: { text: "🏁", fontSize: "18px" },
-        title: "Buyer (Destination)"
+        icon: {
+          url: getIconUrl(<Flag />, "#D28E3D"),
+          scaledSize: new window.google.maps.Size(32, 32),
+          anchor: new window.google.maps.Point(16, 32)
+        },
+        title: "Destination Node"
       })
       bounds.extend(buyerPos)
 
       const routePath = [sellerPos]
-
       updates.forEach((update) => {
         if (update.latitude && update.longitude) {
           const point = { lat: Number(update.latitude), lng: Number(update.longitude) }
@@ -86,7 +107,7 @@ export default function DetailTransaksiPage() {
         }
       })
 
-      const polyline = new window.google.maps.Polyline({
+      new window.google.maps.Polyline({
         path: routePath,
         geodesic: true,
         strokeColor: "#22493A",
@@ -101,8 +122,12 @@ export default function DetailTransaksiPage() {
           new window.google.maps.Marker({
             position: { lat: Number(lastUpdate.latitude), lng: Number(lastUpdate.longitude) },
             map,
-            label: { text: "🚚", fontSize: "24px" },
-            icon: { url: "" }
+            icon: {
+              url: getIconUrl(<Truck />, "#22493A"),
+              scaledSize: new window.google.maps.Size(40, 40),
+              anchor: new window.google.maps.Point(20, 20)
+            },
+            title: "Live Position"
           })
         }
       }
@@ -112,7 +137,14 @@ export default function DetailTransaksiPage() {
   }, [googleReady, tx, updates])
 
   const isSeller = user?.id === tx?.seller_id;
-  const formatUSD = (val) => (val / 15600).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  
+  // Format harga berdasarkan rate ETH Sepolia (asumsi rate 15,600,000 IDR per ETH atau sesuaikan logic bisnis)
+  const formatUSD = (val) => (val / 15600).toLocaleString('en-US', { 
+    style: 'currency', 
+    currency: 'USD', 
+    minimumFractionDigits: 2, 
+    maximumFractionDigits: 8 
+  });
 
   if (loading || !tx) return (
     <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-forest" size={40} /></div>
@@ -131,7 +163,7 @@ export default function DetailTransaksiPage() {
           <ArrowLeft size={18}/> Go back
         </Button>
         {isSeller && (
-           <Button onClick={() => setShowQRLabel(!showQRLabel)} variant="outline" className="rounded-xl border-clay/30 gap-2 text-forest font-bold text-xs tracking-widest">
+           <Button onClick={() => setShowQRLabel(!showQRLabel)} variant="outline" className="rounded-xl border-clay/30 gap-2 text-forest font-bold text-xs uppercase tracking-widest transition-all">
               <QrCode size={16}/> {showQRLabel ? 'Hide Label' : 'Shipping Label'}
            </Button>
         )}
@@ -149,13 +181,13 @@ export default function DetailTransaksiPage() {
               />
             </div>
             <div className="flex-1 space-y-4 text-center md:text-left">
-              <Badge className="bg-harvest text-white text-[9px] tracking-widest px-3 py-1">Node Transaction ID</Badge>
-              <h2 className="text-2xl font-black text-forest uppercase">{tx.tracking_number}</h2>
-              <div className="grid grid-cols-2 gap-4 text-[10px] font-bold tracking-widest">
+              <Badge className="bg-harvest text-white uppercase text-[9px] tracking-widest px-3 py-1">Node Transaction ID</Badge>
+              <h2 className="text-2xl font-black text-forest italic uppercase tracking-tighter leading-none">{tx.tracking_number}</h2>
+              <div className="grid grid-cols-2 gap-4 text-[10px] font-bold uppercase tracking-widest pt-2">
                 <div><p className="opacity-50 mb-1">From</p><p className="text-forest truncate">{tx.seller?.full_name}</p></div>
                 <div><p className="opacity-50 mb-1">To</p><p className="text-forest truncate">{tx.buyer?.full_name}</p></div>
               </div>
-              <Button onClick={() => window.print()} className="bg-slate-900 text-white rounded-xl gap-2 h-10 px-6 text-[10px] font-bold tracking-widest mt-2 print:hidden">
+              <Button onClick={() => window.print()} className="bg-slate-900 text-white rounded-xl gap-2 h-10 px-6 text-[10px] font-bold uppercase tracking-widest mt-2 print:hidden transition-all active:scale-95 shadow-lg">
                 <Printer size={14}/> Print Label
               </Button>
             </div>
@@ -165,61 +197,68 @@ export default function DetailTransaksiPage() {
 
       <div className="w-full h-[450px] rounded-[3rem] bg-slate-100 mb-8 overflow-hidden shadow-inner border border-slate-200 relative">
         <div ref={mapRef} className="w-full h-full" />
-        <div className="absolute top-6 left-6 bg-white/95 backdrop-blur-md p-5 rounded-[2rem] border border-slate-200 shadow-2xl max-w-xs">
-           <div className="text-[10px] font-bold text-forest tracking-widest mb-2 flex items-center gap-2">
+        <div className="absolute top-6 left-6 bg-white/95 backdrop-blur-md p-5 rounded-[2rem] border border-slate-200 shadow-2xl max-w-xs border-white/40">
+           <div className="text-[10px] font-bold text-forest uppercase tracking-widest mb-2 flex items-center gap-2">
              <div className="w-2 h-2 bg-harvest rounded-full animate-ping" /> Global Logistics Node
            </div>
-           <p className="text-xs font-bold text-slate-700 leading-relaxed">
+           <p className="text-xs font-bold text-slate-700 italic leading-relaxed">
              {updates.length > 0 
                ? `Currently transit at: ${updates[updates.length-1].location}` 
                : 'Package is being prepared for dispatch.'}
            </p>
            <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center">
-              <p className="text-[9px] font-bold text-stone/40 tracking-widest">Tracking Status</p>
-              <Badge className="bg-forest/10 text-forest text-[9px] border-none uppercase">{tx.status}</Badge>
+              <p className="text-[9px] font-bold text-stone/40 uppercase tracking-widest">Tracking Status</p>
+              <Badge className="bg-forest/10 text-forest text-[9px] border-none uppercase font-black">{tx.status}</Badge>
            </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-           <div className="bg-slate-50/50 p-8 md:p-10 rounded-[3rem] border border-slate-100">
-              <h3 className="text-sm font-bold text-forest mb-8 flex items-center gap-2 tracking-tighter">
+           <div className="bg-slate-50/50 p-8 md:p-10 rounded-[3rem] border border-slate-100 shadow-sm">
+              <h3 className="text-sm font-bold text-forest uppercase italic mb-8 flex items-center gap-2 tracking-tighter">
                 <Navigation size={16} className="text-harvest" /> Real-time Logistics Ledger
               </h3>
               <div className="relative pl-8 space-y-8 before:content-[''] before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200">
                 {[...updates].reverse().map((update, idx) => (
                   <div key={update.id} className="relative">
                     <div className={`absolute -left-[31px] top-1 w-4 h-4 rounded-full border-4 border-white shadow-sm ${idx === 0 ? 'bg-harvest animate-pulse' : 'bg-slate-300'}`} />
-                    <p className="text-[9px] font-bold text-stone/40 mb-1">{new Date(update.created_at).toLocaleString('en-US')}</p>
-                    <p className="text-sm font-bold text-forest tracking-tight">{update.location}</p>
-                    <p className="text-xs text-stone/60 leading-relaxed">{update.status_description}</p>
+                    <p className="text-[9px] font-bold text-stone/40 uppercase mb-1 tracking-widest">{new Date(update.created_at).toLocaleString('en-US')}</p>
+                    <p className="text-sm font-bold text-forest italic uppercase tracking-tight">{update.location}</p>
+                    <p className="text-xs text-stone/60 leading-relaxed italic">{update.status_description}</p>
                   </div>
                 ))}
                 <div className="relative opacity-50">
                   <div className="absolute -left-[31px] top-1 w-4 h-4 rounded-full border-4 border-white bg-slate-200" />
-                  <p className="text-xs font-bold text-stone tracking-tighter">Origin: {tx.seller?.location}</p>
+                  <p className="text-xs font-bold text-stone italic uppercase tracking-tighter">Origin: {tx.seller?.location}</p>
                 </div>
               </div>
            </div>
         </div>
 
         <div className="space-y-6">
-           <div className="p-8 bg-forest rounded-[2.5rem] text-white relative overflow-hidden shadow-2xl">
+           <div className="p-8 bg-forest rounded-[2.5rem] text-white relative overflow-hidden shadow-2xl border border-white/5">
               <Cpu className="absolute -right-6 -bottom-6 text-white/5" size={150} />
-              <p className="text-[10px] font-bold tracking-widest opacity-60 mb-2">Blockchain Value</p>
-              <p className="text-3xl font-bold tracking-tighter mb-4">{formatUSD(tx.total_price)}</p>
-              <a href={`https://polygonscan.com/tx/${tx.tx_hash}`} target="_blank" className="text-[9px] font-mono opacity-40 hover:opacity-100 flex items-center gap-2 truncate transition-all">
-                <ExternalLink size={10} /> {tx.tx_hash}
-              </a>
+              <p className="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-2">Blockchain Value</p>
+              <p className="text-3xl font-bold tracking-tighter italic mb-4 leading-none break-all">{formatUSD(tx.total_price)}</p>
+              <div className="space-y-3">
+                 <Badge className="bg-white/10 text-white border-none text-[9px] uppercase tracking-widest font-black">Arbitrum Sepolia L2</Badge>
+                 <a 
+                    href={`https://sepolia.arbiscan.io/tx/${tx.tx_hash}`} 
+                    target="_blank" 
+                    className="text-[9px] font-mono opacity-40 hover:opacity-100 flex items-center gap-2 truncate transition-all group"
+                 >
+                   <ExternalLink size={10} className="group-hover:text-harvest" /> {tx.tx_hash}
+                 </a>
+              </div>
            </div>
 
-           <div className="p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100 flex flex-col items-center text-center group transition-all hover:bg-white hover:shadow-xl">
-              <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100 mb-4 group-hover:scale-110 transition-transform">
+           <div className="p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100 flex flex-col items-center text-center group transition-all hover:bg-white hover:shadow-xl hover:border-forest/10">
+              <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100 mb-4 group-hover:scale-110 transition-transform duration-500">
                  <Truck className="text-harvest" size={32} />
               </div>
-              <p className="text-[10px] font-bold text-stone tracking-[0.2em] mb-1">Current status</p>
-              <p className="text-lg font-bold text-forest leading-none">{tx.status.replace('_', ' ')}</p>
+              <p className="text-[10px] font-bold text-stone uppercase tracking-[0.2em] mb-1 opacity-50">Current status</p>
+              <p className="text-lg font-bold text-forest italic uppercase leading-none tracking-tight">{tx.status.replace('_', ' ')}</p>
            </div>
         </div>
       </div>
