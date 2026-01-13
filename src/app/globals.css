@@ -160,3 +160,16 @@ body {
 .no-scrollbar::-webkit-scrollbar {
     display: none;
 }
+
+ @media print {
+  body * { visibility: hidden; }
+  .print\:hidden { display: none !important; }
+  #shipping-label, #shipping-label * { visibility: visible; }
+  #shipping-label { 
+    position: absolute; 
+    left: 0; 
+    top: 0; 
+    width: 100%;
+    border: 2px solid black !important;
+  } 
+}

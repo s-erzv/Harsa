@@ -1,201 +1,237 @@
 "use client"
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
-import { ShieldCheck, ArrowLeft, Download, ExternalLink, Loader2, Globe, Cpu } from 'lucide-react'
+import { 
+  ShieldCheck, ArrowLeft, Download, ExternalLink, Loader2, 
+  Cpu, QrCode, Printer, MapPin, Truck, Navigation, Clock, Map as MapIcon
+} from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import { QRCodeSVG } from 'qrcode.react'
+import Script from 'next/script'
 
 export default function DetailTransaksiPage() {
   const { id } = useParams()
   const router = useRouter()
-  const { supabase } = useAuth()
+  const { supabase, user } = useAuth()
   const [tx, setTx] = useState(null)
+  const [updates, setUpdates] = useState([])
   const [loading, setLoading] = useState(true)
+  const [showQRLabel, setShowQRLabel] = useState(false)
+  
+  const mapRef = useRef(null)
+  const [googleReady, setGoogleReady] = useState(false)
 
   useEffect(() => { if (id) fetchDetail() }, [id])
 
   const fetchDetail = async () => {
     const { data } = await supabase
       .from('transactions')
-      .select('*, product:products(name), seller:profiles!transactions_seller_id_fkey(full_name, wallet_address), buyer:profiles!transactions_buyer_id_fkey(full_name, wallet_address)')
+      .select(`
+        *, 
+        product:products(name), 
+        seller:profiles!transactions_seller_id_fkey(id, full_name, location, latitude, longitude), 
+        buyer:profiles!transactions_buyer_id_fkey(id, full_name, location, latitude, longitude)
+      `)
       .eq('id', id).single()
+    
+    const { data: updateLogs } = await supabase
+      .from('shipping_updates')
+      .select('*')
+      .eq('transaction_id', id)
+      .order('created_at', { ascending: true })
+
     setTx(data)
+    setUpdates(updateLogs || [])
     setLoading(false)
   }
 
-  // Conversion Helper
-  const toUSDValue = (val) => val / 15600;
-  const formatUSD = (val) => toUSDValue(val).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  useEffect(() => {
+    if (googleReady && tx && mapRef.current && tx.seller?.latitude && tx.buyer?.latitude) {
+      const map = new window.google.maps.Map(mapRef.current, {
+        center: { lat: Number(tx.seller.latitude), lng: Number(tx.seller.longitude) },
+        zoom: 7,
+        styles: mapStyle,
+        disableDefaultUI: true,
+      })
 
-  const getBase64ImageFromUrl = async (imageUrl) => {
-    const res = await fetch(imageUrl);
-    const blob = await res.blob();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.addEventListener("load", () => resolve(reader.result), false);
-      reader.onerror = () => reject(this);
-      reader.readAsDataURL(blob);
-    });
-  };
+      const bounds = new window.google.maps.LatLngBounds()
 
-  const exportPDF = async () => {
-    const doc = new jsPDF()
-    const forestGreen = [34, 73, 58]
+      const sellerPos = { lat: Number(tx.seller.latitude), lng: Number(tx.seller.longitude) }
+      new window.google.maps.Marker({
+        position: sellerPos,
+        map,
+        label: { text: "🏠", fontSize: "16px" },
+        title: "Seller (Origin)"
+      })
+      bounds.extend(sellerPos)
 
-    doc.saveGraphicsState();
-    doc.setGState(new doc.GState({ opacity: 0.05 }));
-    doc.setFontSize(70);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(150, 150, 150);
-    doc.text("VERIFIED", 50, 150, { angle: 45 });
-    doc.restoreGraphicsState();
+      const buyerPos = { lat: Number(tx.buyer.latitude), lng: Number(tx.buyer.longitude) }
+      new window.google.maps.Marker({
+        position: buyerPos,
+        map,
+        label: { text: "🏁", fontSize: "18px" },
+        title: "Buyer (Destination)"
+      })
+      bounds.extend(buyerPos)
 
-    try {
-      const imgData = await getBase64ImageFromUrl('/light.png');
-      doc.addImage(imgData, 'PNG', 20, 15, 12, 12);
-    } catch (e) { console.error("Logo failed to load"); }
+      const routePath = [sellerPos]
 
-    doc.setFontSize(22);
-    doc.setTextColor(34, 73, 58);
-    doc.setFont("helvetica", "bold");
-    doc.text("Harsa", 35, 23);
-    
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(100);
-    doc.text("Global Agriculture & Supply Chain Transparency", 35, 28);
+      updates.forEach((update) => {
+        if (update.latitude && update.longitude) {
+          const point = { lat: Number(update.latitude), lng: Number(update.longitude) }
+          routePath.push(point)
+          bounds.extend(point)
+        }
+      })
 
-    const statusText = tx.status.replace('_', ' ');
-    doc.setFillColor(34, 73, 58);
-    doc.roundedRect(145, 15, 45, 10, 2, 2, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(9);
-    doc.text(statusText.toUpperCase(), 167.5, 21.5, { align: 'center' });
+      const polyline = new window.google.maps.Polyline({
+        path: routePath,
+        geodesic: true,
+        strokeColor: "#22493A",
+        strokeOpacity: 0.6,
+        strokeWeight: 4,
+        map: map
+      })
 
-    doc.setTextColor(34, 73, 58);
-    doc.setFontSize(14);
-    doc.text("Sales Invoice", 20, 50);
-    doc.setDrawColor(226, 232, 240);
-    doc.line(20, 53, 190, 53);
+      if (updates.length > 0) {
+        const lastUpdate = updates[updates.length - 1]
+        if (lastUpdate.latitude && lastUpdate.longitude) {
+          new window.google.maps.Marker({
+            position: { lat: Number(lastUpdate.latitude), lng: Number(lastUpdate.longitude) },
+            map,
+            label: { text: "🚚", fontSize: "24px" },
+            icon: { url: "" }
+          })
+        }
+      }
 
-    doc.setFontSize(9);
-    doc.setTextColor(100);
-    doc.text("Order ID:", 20, 63);
-    doc.setTextColor(50);
-    doc.text(`${tx.id}`, 50, 63);
+      map.fitBounds(bounds)
+    }
+  }, [googleReady, tx, updates])
 
-    doc.setTextColor(100);
-    doc.text("L2 Node ID:", 20, 69);
-    doc.setTextColor(50);
-    doc.text(`${tx.blockchain_id || 'Pending'}`, 50, 69);
-
-    doc.setTextColor(100);
-    doc.text("Timestamp:", 20, 75);
-    doc.setTextColor(50);
-    doc.text(`${new Date(tx.created_at).toLocaleString('en-US')}`, 50, 75);
-
-    autoTable(doc, {
-      startY: 100,
-      head: [['Item Description', 'Quantity', 'Unit Price', 'Total']],
-      body: [
-        [
-          tx.product?.name, 
-          `${tx.amount_kg} kg`, 
-          formatUSD(tx.total_price / tx.amount_kg), 
-          formatUSD(tx.total_price)
-        ]
-      ],
-      headStyles: { fillColor: forestGreen, fontStyle: 'bold' },
-      styles: { fontSize: 10, cellPadding: 5 },
-      margin: { left: 20, right: 20 }
-    })
-
-    const finalY = doc.lastAutoTable.finalY + 15;
-    doc.setTextColor(34, 73, 58);
-    doc.setFontSize(10);
-    doc.text("Arbitrum On-Chain Verification", 20, finalY);
-    
-    doc.setTextColor(100);
-    doc.setFontSize(7);
-    doc.setFont("courier", "normal");
-    doc.text(`Hash: ${tx.tx_hash}`, 20, finalY + 6);
-
-    doc.save(`Harsa_Invoice_${tx.id.slice(0,5)}.pdf`)
-  }
+  const isSeller = user?.id === tx?.seller_id;
+  const formatUSD = (val) => (val / 15600).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
   if (loading || !tx) return (
     <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-forest" size={40} /></div>
   )
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-10 bg-white min-h-screen font-raleway pb-24 text-left">
-      <Button variant="ghost" onClick={() => router.back()} className="mb-6 gap-2 p-0 md:p-2 text-stone hover:text-forest transition-all active:scale-95">
-        <ArrowLeft size={18}/> Go back
-      </Button>
+    <div className="max-w-5xl mx-auto p-4 md:p-10 bg-white min-h-screen font-raleway pb-24 text-left">
+      <Script 
+        id="google-maps-loader"
+        src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY}&libraries=places&loading=async`}
+        onLoad={() => setGoogleReady(true)}
+      />
 
-      <div className="bg-slate-50/50 p-6 md:p-12 rounded-[2.5rem] md:rounded-[4rem] border border-slate-100 mb-8 overflow-hidden relative shadow-sm">
-        <div className="flex flex-col md:flex-row justify-between items-start gap-6 mb-12">
-          <div className="w-full md:w-auto">
-            <h1 className="text-3xl md:text-5xl font-bold text-forest tracking-tighter italic uppercase mb-3">{tx.product?.name}</h1>
-            <Badge className="bg-white text-forest border-clay/30 text-[10px] md:text-xs px-5 py-1.5 rounded-full font-bold uppercase tracking-widest">
-              Digital receipt • {tx.status.replace('_', ' ').toLowerCase()}
-            </Badge>
+      <div className="flex justify-between items-center mb-6">
+        <Button variant="ghost" onClick={() => router.back()} className="gap-2 p-0 text-stone hover:text-forest transition-all">
+          <ArrowLeft size={18}/> Go back
+        </Button>
+        {isSeller && (
+           <Button onClick={() => setShowQRLabel(!showQRLabel)} variant="outline" className="rounded-xl border-clay/30 gap-2 text-forest font-bold text-xs tracking-widest">
+              <QrCode size={16}/> {showQRLabel ? 'Hide Label' : 'Shipping Label'}
+           </Button>
+        )}
+      </div>
+
+      {showQRLabel && isSeller && (
+        <div id="shipping-label" className="mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="bg-white border-2 border-dashed border-clay/40 rounded-[2.5rem] p-8 flex flex-col md:flex-row items-center gap-8 shadow-sm">
+            <div className="p-4 bg-white border border-slate-100 rounded-3xl shadow-inner">
+              <QRCodeSVG 
+                value={`${window.location.origin}/track/${tx.tracking_number}`} 
+                size={160}
+                level="H"
+                includeMargin={true}
+              />
+            </div>
+            <div className="flex-1 space-y-4 text-center md:text-left">
+              <Badge className="bg-harvest text-white text-[9px] tracking-widest px-3 py-1">Node Transaction ID</Badge>
+              <h2 className="text-2xl font-black text-forest uppercase">{tx.tracking_number}</h2>
+              <div className="grid grid-cols-2 gap-4 text-[10px] font-bold tracking-widest">
+                <div><p className="opacity-50 mb-1">From</p><p className="text-forest truncate">{tx.seller?.full_name}</p></div>
+                <div><p className="opacity-50 mb-1">To</p><p className="text-forest truncate">{tx.buyer?.full_name}</p></div>
+              </div>
+              <Button onClick={() => window.print()} className="bg-slate-900 text-white rounded-xl gap-2 h-10 px-6 text-[10px] font-bold tracking-widest mt-2 print:hidden">
+                <Printer size={14}/> Print Label
+              </Button>
+            </div>
           </div>
-          <Button onClick={exportPDF} className="w-full md:w-auto bg-forest text-white rounded-[1.5rem] gap-3 h-12 md:h-14 px-8 shadow-xl shadow-forest/20 uppercase text-xs font-bold tracking-widest transition-all active:scale-95">
-            <Download size={18}/> Export Invoice
-          </Button>
         </div>
+      )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 py-10 md:py-12 border-y border-slate-200/60">
-          <div className="space-y-8">
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">Merchant</p>
-              <p className="font-bold text-xl text-forest italic">{tx.seller?.full_name}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">Buyer</p>
-              <p className="font-bold text-xl text-forest italic">{tx.buyer?.full_name}</p>
-            </div>
-          </div>
-          <div className="space-y-8">
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">L2 Node ID</p>
-              <p className="font-mono font-bold text-forest bg-white px-4 py-2 rounded-xl border border-clay/20 inline-block shadow-sm">#{tx.blockchain_id || 'unassigned'}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">Total Settlement</p>
-              <p className="text-4xl font-bold text-forest tracking-tighter tabular-nums">{formatUSD(tx.total_price)}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-12 p-8 md:p-10 bg-forest rounded-[2.5rem] md:rounded-[3.5rem] text-white flex flex-col lg:flex-row items-center justify-between gap-8 relative overflow-hidden group shadow-2xl">
-          <Cpu className="absolute -right-6 -bottom-6 text-white/5 group-hover:scale-110 transition-transform duration-700" size={180} />
-          <div className="flex items-center gap-6 relative z-10 w-full lg:w-auto">
-            <div className="bg-white/10 p-4 md:p-5 rounded-3xl border border-white/20 shrink-0 backdrop-blur-md">
-              <ShieldCheck size={36} className="text-harvest" />
-            </div>
-            <div className="min-w-0">
-              <p className="font-bold text-lg md:text-xl tracking-tight mb-1 italic">Verified on-chain</p>
-              <p className="text-[10px] md:text-xs opacity-50 font-mono truncate max-w-full md:max-w-xs">{tx.tx_hash}</p>
-            </div>
-          </div>
-          <a 
-            href={`https://arbiscan.io/tx/${tx.tx_hash}`} 
-            target="_blank" 
-            className="w-full lg:w-auto flex items-center justify-center gap-3 px-8 py-4 bg-white/10 hover:bg-white/20 border border-white/20 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all active:scale-95"
-          >
-            Arbiscan Node <ExternalLink size={14}/>
-          </a>
+      <div className="w-full h-[450px] rounded-[3rem] bg-slate-100 mb-8 overflow-hidden shadow-inner border border-slate-200 relative">
+        <div ref={mapRef} className="w-full h-full" />
+        <div className="absolute top-6 left-6 bg-white/95 backdrop-blur-md p-5 rounded-[2rem] border border-slate-200 shadow-2xl max-w-xs">
+           <div className="text-[10px] font-bold text-forest tracking-widest mb-2 flex items-center gap-2">
+             <div className="w-2 h-2 bg-harvest rounded-full animate-ping" /> Global Logistics Node
+           </div>
+           <p className="text-xs font-bold text-slate-700 leading-relaxed">
+             {updates.length > 0 
+               ? `Currently transit at: ${updates[updates.length-1].location}` 
+               : 'Package is being prepared for dispatch.'}
+           </p>
+           <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center">
+              <p className="text-[9px] font-bold text-stone/40 tracking-widest">Tracking Status</p>
+              <Badge className="bg-forest/10 text-forest text-[9px] border-none uppercase">{tx.status}</Badge>
+           </div>
         </div>
       </div>
-      
-      <p className="text-[9px] text-stone/40 uppercase font-bold tracking-[0.4em] text-center">
-        Secure Protocol Infrastructure &copy; {new Date().getFullYear()} Harsa
-      </p>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
+           <div className="bg-slate-50/50 p-8 md:p-10 rounded-[3rem] border border-slate-100">
+              <h3 className="text-sm font-bold text-forest mb-8 flex items-center gap-2 tracking-tighter">
+                <Navigation size={16} className="text-harvest" /> Real-time Logistics Ledger
+              </h3>
+              <div className="relative pl-8 space-y-8 before:content-[''] before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200">
+                {[...updates].reverse().map((update, idx) => (
+                  <div key={update.id} className="relative">
+                    <div className={`absolute -left-[31px] top-1 w-4 h-4 rounded-full border-4 border-white shadow-sm ${idx === 0 ? 'bg-harvest animate-pulse' : 'bg-slate-300'}`} />
+                    <p className="text-[9px] font-bold text-stone/40 mb-1">{new Date(update.created_at).toLocaleString('en-US')}</p>
+                    <p className="text-sm font-bold text-forest tracking-tight">{update.location}</p>
+                    <p className="text-xs text-stone/60 leading-relaxed">{update.status_description}</p>
+                  </div>
+                ))}
+                <div className="relative opacity-50">
+                  <div className="absolute -left-[31px] top-1 w-4 h-4 rounded-full border-4 border-white bg-slate-200" />
+                  <p className="text-xs font-bold text-stone tracking-tighter">Origin: {tx.seller?.location}</p>
+                </div>
+              </div>
+           </div>
+        </div>
+
+        <div className="space-y-6">
+           <div className="p-8 bg-forest rounded-[2.5rem] text-white relative overflow-hidden shadow-2xl">
+              <Cpu className="absolute -right-6 -bottom-6 text-white/5" size={150} />
+              <p className="text-[10px] font-bold tracking-widest opacity-60 mb-2">Blockchain Value</p>
+              <p className="text-3xl font-bold tracking-tighter mb-4">{formatUSD(tx.total_price)}</p>
+              <a href={`https://polygonscan.com/tx/${tx.tx_hash}`} target="_blank" className="text-[9px] font-mono opacity-40 hover:opacity-100 flex items-center gap-2 truncate transition-all">
+                <ExternalLink size={10} /> {tx.tx_hash}
+              </a>
+           </div>
+
+           <div className="p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100 flex flex-col items-center text-center group transition-all hover:bg-white hover:shadow-xl">
+              <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100 mb-4 group-hover:scale-110 transition-transform">
+                 <Truck className="text-harvest" size={32} />
+              </div>
+              <p className="text-[10px] font-bold text-stone tracking-[0.2em] mb-1">Current status</p>
+              <p className="text-lg font-bold text-forest leading-none">{tx.status.replace('_', ' ')}</p>
+           </div>
+        </div>
+      </div>
     </div>
   )
 }
+
+const mapStyle = [
+  { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#e9e9e9" }, { "lightness": 17 }] },
+  { "featureType": "landscape", "elementType": "geometry", "stylers": [{ "color": "#f5f5f5" }, { "lightness": 20 }] },
+  { "featureType": "road.highway", "elementType": "geometry.fill", "stylers": [{ "color": "#ffffff" }, { "lightness": 17 }] },
+  { "featureType": "road.highway", "elementType": "geometry.stroke", "stylers": [{ "color": "#ffffff" }, { "lightness": 29 }, { "weight": 0.2 }] },
+  { "featureType": "poi", "elementType": "geometry", "stylers": [{ "color": "#f5f5f5" }, { "lightness": 21 }] },
+  { "featureType": "administrative", "elementType": "geometry.fill", "stylers": [{ "color": "#fefefe" }, { "lightness": 20 }] }
+];
