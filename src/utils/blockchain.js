@@ -20,29 +20,50 @@ export const publicClient = createPublicClient({
   chain: arbitrumSepolia,
   transport: http(process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL || "https://sepolia-rollup.arbitrum.io/rpc"),
 })
+// Helper untuk cek apakah window.ethereum tersedia
+const getEthereum = () => {
+  if (typeof window !== "undefined" && window.ethereum) return window.ethereum;
+  return null;
+};
 
 export const getWalletClient = async () => {
-  if (typeof window !== "undefined" && window.ethereum) {
-    try {
-      await window.ethereum.request({ method: 'eth_requestAccounts' });
-      const walletClient = createWalletClient({
-        chain: arbitrumSepolia,
-        transport: custom(window.ethereum),
-      })
-      const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
-      const targetChainId = `0x${arbitrumSepolia.id.toString(16)}`; 
-      if (currentChainId !== targetChainId) {
-        try {
-          await window.ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: targetChainId }],
-          });
-        } catch (sError) { if (sError.code === 4902) alert("Add Arb Sepolia to MetaMask"); }
-      }
-      return walletClient
-    } catch (error) { throw new Error("Wallet failed") }
+  const eth = getEthereum();
+  
+  if (!eth) {
+    // Biar gak error "uncaught in promise", kita throw error yang bisa ditangkep UI
+    throw new Error("METAMASK_NOT_FOUND");
   }
-  throw new Error("Metamask not detected")
+
+  try {
+    // Minta akses akun
+    await eth.request({ method: 'eth_requestAccounts' });
+    
+    const walletClient = createWalletClient({
+      chain: arbitrumSepolia,
+      transport: custom(eth),
+    });
+
+    // Auto-switch network logic
+    const currentChainId = await eth.request({ method: 'eth_chainId' });
+    const targetChainId = `0x${arbitrumSepolia.id.toString(16)}`; 
+
+    if (currentChainId !== targetChainId) {
+      try {
+        await eth.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: targetChainId }],
+        });
+      } catch (switchError) {
+        if (switchError.code === 4902) {
+          alert("Please add Arbitrum Sepolia to your MetaMask.");
+        }
+      }
+    }
+
+    return walletClient;
+  } catch (error) {
+    throw new Error("USER_REJECTED_CONNECTION");
+  }
 }
 
 export const checkout = async (items) => {

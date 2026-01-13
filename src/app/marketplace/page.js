@@ -1,26 +1,17 @@
 "use client"
 import React, { useState, useEffect } from 'react'
-import { createClient } from '@supabase/supabase-js'
 import { 
-  ShoppingCart, Search, Filter, MapPin, 
-  ShieldCheck, Plus, Leaf, LayoutDashboard,
-  ArrowRight, X, Trash2, ShoppingBag, Loader2,
-  Star, Check, Package, LogIn, Globe
+  Search, Filter, MapPin, ShieldCheck, Leaf, LayoutDashboard,
+  ArrowRight, Loader2, Star, Check, Package, LogIn, Globe, 
+  Navigation, Heart, Zap, Sparkles, Activity, Layers
 } from 'lucide-react'
-import Image from 'next/image'
 import Link from 'next/link'
+import { useAuth } from '@/context/AuthContext'
+import { getEthPrice } from '@/utils/blockchain' 
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { 
-  Sheet, 
-  SheetContent, 
-  SheetHeader, 
-  SheetTitle, 
-  SheetTrigger,
-  SheetFooter
-} from "@/components/ui/sheet"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,303 +20,266 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 export default function Marketplace() {
+  const { supabase, user } = useAuth()
   const [products, setProducts] = useState([])
-  const [cart, setCart] = useState([])
   const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('All')
-  const [isCartOpen, setIsCartOpen] = useState(false)
-  
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  const [selectedCategory, setSelectedCategory] = useState('All Categories')
+  const [userLocation, setUserLocation] = useState(null)
+  const [sortByNearby, setSortByNearby] = useState(false)
 
-  const categories = ['All', 'Rice', 'Vegetables', 'Fruits', 'Spices', 'Others']
+  const categories = ['All Categories', 'Rice', 'Vegetables', 'Fruits', 'Spices', 'Others']
 
   useEffect(() => {
-    const fetchInitialData = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      setUser(session?.user || null)
-
-      const { data } = await supabase
-        .from('products')
-        .select('*, profiles(full_name, reputation_score)')
-        .order('created_at', { ascending: false })
-      setProducts(data || [])
-      setLoading(false)
+    fetchProducts()
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+      })
     }
+  }, [])
+
+  const fetchProducts = async () => {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('products')
+      .select('*, profiles(full_name, reputation_score, location, latitude, longitude, wallet_address)')
+      .order('created_at', { ascending: false })
     
-    fetchInitialData()
-    const savedCart = localStorage.getItem('harsa_cart')
-    if (savedCart) setCart(JSON.parse(savedCart))
-  }, [supabase])
+    if (!error) setProducts(data || [])
+    setLoading(false)
+  }
 
-  useEffect(() => {
-    localStorage.setItem('harsa_cart', JSON.stringify(cart))
-  }, [cart])
+  const getDistance = (lat1, lon1, lat2, lon2) => {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return null
+    const R = 6371 
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLon = (lon2 - lon1) * Math.PI / 180
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2)
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  }
 
-  const addToCart = (product) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.id === product.id)
-      if (existing) {
-        return prev.map(item => 
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-        )
-      }
-      return [...prev, { ...product, quantity: 1 }]
+  const filteredProducts = products
+    .filter(p => {
+      const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase())
+      const catToMatch = selectedCategory === 'All Categories' ? 'All' : selectedCategory
+      const matchesCategory = catToMatch === 'All' || p.category === catToMatch
+      return matchesSearch && matchesCategory
     })
-    setIsCartOpen(true)
-  }
-
-  const removeFromCart = (id) => {
-    setCart(prev => prev.filter(item => item.id !== id))
-  }
-
-  const cartTotal = cart.reduce((sum, item) => sum + (item.price_per_kg * item.quantity), 0)
-
-  const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase())  
-    const catMap = { 'Rice': 'Beras', 'Vegetables': 'Sayuran', 'Fruits': 'Buah', 'Spices': 'Rempah', 'Others': 'Lainnya' }
-    const dbCategory = catMap[selectedCategory] || 'Semua'
-    
-    const matchesCategory = selectedCategory === 'All' || p.category === dbCategory
-    return matchesSearch && matchesCategory
-  })
+    .sort((a, b) => {
+      if (sortByNearby && userLocation) {
+        const distA = getDistance(userLocation.lat, userLocation.lng, a.profiles?.latitude, a.profiles?.longitude) || Infinity
+        const distB = getDistance(userLocation.lat, userLocation.lng, b.profiles?.latitude, b.profiles?.longitude) || Infinity
+        return distA - distB
+      }
+      return 0
+    })
 
   return (
-    <div className="min-h-screen bg-white font-raleway"> 
-      <nav className="fixed w-full bg-white/80 backdrop-blur-xl border-b border-stone-100 z-50">
-        <div className="max-w-7xl mx-auto px-4 md:px-8 h-20 flex items-center justify-between">
+    <div className="min-h-screen bg-[#FAFAFA] font-raleway pb-24 text-left selection:bg-forest selection:text-white">
+      
+      <nav className="fixed w-full bg-white/80 backdrop-blur-xl border-b border-clay/20 z-[100] transition-all">
+        <div className="max-w-7xl mx-auto px-4 md:px-10 h-20 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-10 h-10 bg-forest rounded-xl flex items-center justify-center transition-transform group-hover:rotate-12">
-              <Leaf size={20} className="text-chalk" />
-            </div>
-            <span className="text-xl font-bold text-forest tracking-tighter italic">Harsa Market</span>
+            <img src="/light.png" alt="Harsa" className="h-9 w-auto transition-transform group-hover:rotate-6" />
+            <span className="text-xl font-bold text-forest italic leading-none">Harsa</span>
           </Link>
           
-          <div className="flex items-center gap-2 md:gap-4"> 
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-chalk border border-clay/50 text-[10px] font-bold text-forest mr-2 tracking-widest">
-              <Globe size={14} /> Global Trade
-            </div>
+          <div className="flex items-center gap-3"> 
+            <Button 
+              variant="outline"
+              onClick={() => setSortByNearby(!sortByNearby)}
+              className={`rounded-2xl h-10 px-4 text-[11px] font-bold transition-all gap-2 ${sortByNearby ? 'bg-harvest text-white border-none shadow-lg' : 'border-clay/60 text-stone'}`}
+            >
+              <Navigation size={14} className={sortByNearby ? "animate-pulse" : ""} /> 
+              <span className="hidden xs:block">{sortByNearby ? 'Nearby Enabled' : 'Find Nearby'}</span>
+            </Button>
 
             {user ? (
               <Link href="/dashboard">
-                <Button variant="ghost" className="hidden md:flex gap-2 text-stone hover:text-forest font-bold text-[11px] tracking-widest">
-                  <LayoutDashboard size={18} /> Dashboard
+                <Button className="rounded-2xl bg-forest hover:bg-forest/90 h-10 px-5 gap-2 text-[11px] font-bold shadow-xl shadow-forest/20 active:scale-95">
+                  <LayoutDashboard size={14} /> <span className="hidden sm:block">My Account</span>
                 </Button>
               </Link>
             ) : (
               <Link href="/login">
-                <Button variant="ghost" className="hidden md:flex gap-2 text-forest hover:bg-forest/5 font-bold border border-forest/10 rounded-xl text-[11px] tracking-widest">
-                  <LogIn size={18} /> Login
+                <Button variant="ghost" className="rounded-2xl text-forest h-10 px-5 text-[11px] font-bold hover:bg-chalk">
+                  Sign In
                 </Button>
               </Link>
             )}
-
-            <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
-              <SheetTrigger asChild>
-                <div className="relative p-3 bg-chalk rounded-2xl cursor-pointer group hover:bg-clay/20 transition-all shadow-sm">
-                  <ShoppingCart size={22} className="text-forest" />
-                  {cart.length > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-harvest text-forest text-[10px] flex items-center justify-center rounded-full font-black border-2 border-white animate-in zoom-in">
-                      {cart.reduce((a, b) => a + b.quantity, 0)}
-                    </span>
-                  )}
-                </div>
-              </SheetTrigger>
-              <SheetContent className="w-full sm:max-w-md rounded-l-2xl border-clay bg-white flex flex-col font-raleway">
-                <SheetHeader className="pb-6 border-b border-stone-100">
-                  <SheetTitle className="text-2xl font-bold text-forest flex items-center gap-3 italic">
-                    <ShoppingBag /> Shopping Cart
-                  </SheetTitle>
-                </SheetHeader>
-                
-                <div className="flex-1 overflow-y-auto py-6 space-y-4 no-scrollbar">
-                  {cart.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-stone opacity-40 italic">
-                      <ShoppingCart size={48} className="mb-4" />
-                      <p>Your cart is empty</p>
-                    </div>
-                  ) : (
-                    cart.map((item) => (
-                      <div key={item.id} className="flex gap-4 p-4 rounded-3xl bg-chalk/50 border border-stone-50 group">
-                        <div className="w-20 h-20 bg-clay/30 rounded-2xl flex items-center justify-center shrink-0 overflow-hidden">
-                          {item.image_url ? (
-                            <img src={item.image_url} className="w-full h-full object-cover" alt={item.name} />
-                          ) : (
-                            <Package className="text-forest/30" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0 text-left">
-                          <p className="text-[10px] font-bold text-harvest tracking-widest">{item.category}</p>
-                          <h4 className="font-bold text-forest truncate">{item.name}</h4>
-                          <p className="text-xs text-stone font-medium italic">${(item.price_per_kg / 15600).toFixed(2)} x {item.quantity}kg</p>
-                        </div>
-                        <button onClick={() => removeFromCart(item.id)} className="p-2 text-stone/40 hover:text-red-500 self-center transition-colors">
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {cart.length > 0 && (
-                  <SheetFooter className="pt-6 border-t border-stone-100 block space-y-4">
-                    <div className="flex justify-between items-end">
-                      <span className="text-stone text-[10px] font-bold tracking-[0.2em]">Estimated Total</span>
-                      <span className="text-2xl font-bold text-forest tabular-nums">${(cartTotal / 15600).toFixed(2)}</span>
-                    </div>
-                    <Button className="w-full bg-forest hover:bg-forest/90 text-chalk h-14 rounded-2xl font-bold text-base shadow-xl shadow-forest/20 tracking-widest">
-                      Proceed to Checkout
-                    </Button>
-                  </SheetFooter>
-                )}
-              </SheetContent>
-            </Sheet>
           </div>
         </div>
       </nav>
 
-      <main className="pt-32 pb-20 max-w-7xl mx-auto px-4 md:px-8 text-left">
-        <header className="mb-16">
-          <div className="max-w-3xl">
-            <Badge variant="secondary" className="bg-clay/50 text-forest font-bold mb-4 px-4 py-1.5 rounded-full border-none text-[10px] tracking-widest">
-              #TrustedSupplyChain
-            </Badge>
-            <h1 className="text-4xl md:text-6xl font-bold text-stone-900 mb-8 leading-[1.1] tracking-tighter italic">
-              Source harvest <span className="text-harvest underline decoration-clay underline-offset-8">directly</span> from the global origin.
+      <main className="pt-32 md:pt-48 max-w-7xl mx-auto px-6 md:px-10">
+        
+        <header className="mb-20 grid lg:grid-cols-2 gap-12 items-center">
+          <div className="space-y-6">
+            <div className="inline-flex items-center gap-3 py-2 px-4 rounded-full bg-forest text-chalk text-[10px] font-bold border border-white/10 shadow-lg">
+              <Sparkles size={12} className="text-harvest" /> Real-time Market Access
+            </div>
+            <h1 className="text-7xl md:text-8xl font-bold text-stone leading-[1] tracking-tighter italic">
+              Source <br/> <span className="text-forest decoration-clay/40">Premium</span> <br/> <span className="text-stone-300">Harvests.</span>
             </h1>
+            <p className="text-stone/60 text-lg font-medium italic border-l-4 border-clay pl-6 max-w-lg leading-relaxed">
+              Browse authentic products directly from local farmers. Every purchase is protected by our secure smart contract system.
+            </p>
             
-            <div className="flex flex-col md:flex-row gap-3">
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <div className="flex-1 relative group">
-                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-stone/40 group-focus-within:text-forest transition-colors" size={20} />
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-stone/30 group-focus-within:text-forest transition-colors" size={20} />
                 <input 
                   type="text" 
-                  placeholder="Search rice, veggies, or fruits..." 
+                  placeholder="Search for rice, veggies, or farmers..." 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-14 pr-6 py-5 rounded-3xl bg-chalk border border-stone-100 focus:bg-white focus:ring-4 focus:ring-forest/5 outline-none transition-all text-sm font-medium"
+                  className="w-full pl-14 pr-4 py-4 rounded-3xl bg-white border border-clay/20 focus:ring-4 focus:ring-forest/5 outline-none transition-all text-sm font-semibold italic text-forest shadow-sm"
                 />
               </div>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button className="px-10 py-8 bg-forest hover:bg-forest/90 text-white rounded-3xl font-bold text-sm shadow-xl shadow-forest/20 gap-3 tracking-widest">
-                    <Filter size={18} /> {selectedCategory === 'All' ? 'Category' : selectedCategory}
+                  <Button variant="outline" className="rounded-3xl h-14 px-8 border-clay text-stone font-bold text-xs gap-3 hover:bg-white shadow-sm">
+                    <Filter size={18} className="text-harvest" /> {selectedCategory}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 rounded-2xl p-2 font-raleway border-clay bg-white">
+                <DropdownMenuContent className="w-56 rounded-2xl p-2 font-raleway border-clay bg-white shadow-2xl">
                   {categories.map((cat) => (
                     <DropdownMenuItem 
                       key={cat}
                       onClick={() => setSelectedCategory(cat)}
-                      className={`rounded-xl px-4 py-3 text-sm font-bold flex justify-between cursor-pointer ${selectedCategory === cat ? 'bg-forest text-white' : 'text-stone hover:bg-chalk'}`}
+                      className={`rounded-xl px-4 py-3 text-[11px] font-bold flex justify-between cursor-pointer mb-1 ${selectedCategory === cat ? 'bg-forest text-white' : 'text-stone hover:bg-chalk'}`}
                     >
                       {cat}
-                      {selectedCategory === cat && <Check size={16} />}
+                      {selectedCategory === cat && <Check size={14} />}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </div>
+
+          <div className="hidden lg:block relative group transform rotate-2 hover:rotate-0 transition-all duration-700">
+            <div className="absolute inset-0 bg-forest/5 rounded-[3rem] blur-2xl opacity-50" />
+            <div className="relative bg-white border-2 border-clay rounded-[3rem] p-10 shadow-2xl space-y-8">
+              <div className="flex justify-between items-center border-b border-chalk pb-6">
+                <div className="flex items-center gap-3">
+                   <Layers className="text-forest" size={20} />
+                   <p className="text-[10px] font-bold text-stone/40 uppercase tracking-widest leading-none">Network Status</p>
+                </div>
+                <div className="flex items-center gap-2">
+                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                   <span className="text-[10px] font-bold text-forest leading-none">ACTIVE</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="bg-chalk/40 p-5 rounded-[1.5rem] border border-clay/10">
+                  <p className="text-[9px] font-semibold text-stone/40 uppercase mb-2">Available Crops</p>
+                  <p className="text-3xl font-bold text-forest tracking-tighter leading-none">{products.length}</p>
+                </div>
+                <div className="bg-chalk/40 p-5 rounded-[1.5rem] border border-clay/10">
+                  <p className="text-[9px] font-semibold text-stone/40 uppercase mb-2">Platform Fee</p>
+                  <p className="text-3xl font-bold text-forest tracking-tighter leading-none">0%</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 bg-forest text-chalk p-4 rounded-2xl shadow-xl">
+                 <ShieldCheck className="text-harvest" size={20} />
+                 <p className="text-xs font-semibold italic">Safe Escrow: Your funds are protected until delivery.</p>
+              </div>
+            </div>
+          </div>
         </header>
 
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {[1,2,3,4,5,6,7,8].map(i => (
-              <div key={i} className="space-y-4">
-                <div className="aspect-square bg-chalk animate-pulse rounded-[2.5rem]"></div>
-                <div className="h-4 w-2/3 bg-chalk animate-pulse rounded-full"></div>
-                <div className="h-6 w-1/2 bg-chalk animate-pulse rounded-full"></div>
-              </div>
+              <div key={i} className="aspect-[4/5] bg-white animate-pulse rounded-[2.5rem] border border-clay/10"></div>
             ))}
           </div>
         ) : filteredProducts.length === 0 ? (
-          <div className="py-20 text-center flex flex-col items-center justify-center space-y-4">
-            <div className="p-6 bg-chalk rounded-full">
-              <Search size={40} className="text-stone/20" />
-            </div>
-            <h3 className="text-xl font-bold text-forest">Product Not Found</h3>
-            <p className="text-stone max-w-xs mx-auto italic lowercase">We couldn't find any products matching your current search criteria.</p>
-            <Button variant="link" onClick={() => {setSearchTerm(''); setSelectedCategory('All')}} className="text-harvest font-bold tracking-widest text-[10px]">
-              Reset Filters
-            </Button>
+          <div className="py-24 text-center bg-white rounded-[3rem] border-2 border-dashed border-clay/30">
+             <Package size={60} strokeWidth={1} className="text-clay mx-auto mb-4" />
+             <h3 className="text-2xl font-bold text-forest italic">No products found</h3>
+             <p className="text-stone/40 text-sm mt-1">Try adjusting your filters or search terms.</p>
+             <Button variant="link" onClick={() => {setSearchTerm(''); setSelectedCategory('All Categories')}} className="text-harvest text-xs font-bold uppercase mt-4">Reset Search</Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-10 md:gap-y-16 animate-in fade-in duration-500">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-8">
             {filteredProducts.map((p) => (
-              <Card key={p.id} className="group border-none shadow-none bg-transparent">
-                <CardContent className="p-0">
-                  <div className="relative aspect-[4/5] bg-chalk rounded-[2.5rem] overflow-hidden mb-6 border border-stone-50 transition-all duration-500 group-hover:shadow-2xl group-hover:shadow-forest/10 group-hover:-translate-y-2">
-                    <Badge className="absolute top-6 left-6 z-10 bg-white/90 backdrop-blur text-forest font-bold px-4 py-1.5 rounded-xl border-none shadow-sm text-[10px] tracking-wider">
-                      {p.category}
-                    </Badge>
-                    
-                    {p.image_url ? (
-                      <img src={p.image_url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={p.name} />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center opacity-10 group-hover:opacity-20 group-hover:scale-110 transition-all duration-700">
-                        <ShieldCheck size={160} strokeWidth={1} className="text-forest" />
+              <Link href={`/marketplace/${p.id}`} key={p.id} className="group">
+                <Card className="border-none shadow-none bg-transparent overflow-visible">
+                  <CardContent className="p-0">
+                    <div className="relative aspect-[4/5] rounded-[2.5rem] overflow-hidden mb-5 bg-white border border-clay/10 transition-all duration-500 group-hover:shadow-[0_40px_80px_-20px_rgba(27,67,50,0.12)] group-hover:-translate-y-2">
+                      
+                      <div className="absolute top-4 left-4 z-10 flex flex-col gap-1.5">
+                        <Badge className="bg-white/90 backdrop-blur-md text-forest font-bold px-3 py-1 rounded-xl text-[9px] border-none shadow-sm">
+                          {p.category}
+                        </Badge>
+                        {sortByNearby && userLocation && (
+                          <Badge className="bg-harvest text-white font-bold px-3 py-1 rounded-xl text-[8px] italic border-none shadow-lg">
+                            {getDistance(userLocation.lat, userLocation.lng, p.profiles?.latitude, p.profiles?.longitude)?.toFixed(1)} KM Away
+                          </Badge>
+                        )}
                       </div>
-                    )}
 
-                    <div className="absolute bottom-6 inset-x-6 z-10 flex justify-between items-end">
-                      <div className="space-y-2 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500">
-                         <Badge className="bg-forest text-chalk border-none font-bold lowercase">
-                           stock: {p.stock_kg} kg
-                         </Badge>
-                      </div>
-                      <button 
-                        onClick={() => addToCart(p)}
-                        className="w-14 h-14 bg-forest text-chalk rounded-2xl flex items-center justify-center shadow-xl shadow-forest/20 hover:bg-forest/90 active:scale-90 transition-all"
-                      >
-                        <Plus size={24} />
-                      </button>
-                    </div>
-                  </div>
+                      {/* <button className="absolute top-4 right-4 z-10 w-9 h-9 rounded-full bg-white/40 backdrop-blur-md flex items-center justify-center text-forest hover:bg-white hover:text-red-500 transition-all opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100">
+                        <Heart size={16} />
+                      </button> */}
+                      
+                      {p.image_url ? (
+                        <img src={p.image_url} className="w-full h-full object-cover transition-transform duration-[1.5s] group-hover:scale-110" alt={p.name} />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center opacity-5">
+                          <ShieldCheck size={180} strokeWidth={1} className="text-forest" />
+                        </div>
+                      )}
 
-                  <div className="px-2 space-y-3"> 
-                    <div className="flex items-center justify-between text-[11px] font-bold tracking-widest">
-                      <div className="flex items-center gap-2">
-                        <MapPin size={14} className="text-harvest" />
-                        <span className="text-stone/60 truncate max-w-[100px]">{p.profiles?.full_name}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Star size={12} className="fill-harvest text-harvest" />
-                        <span className="text-stone">{p.profiles?.reputation_score || 100}</span>
+                      <div className="absolute bottom-4 right-4">
+                        <div className="w-10 h-10 bg-forest text-white rounded-2xl flex items-center justify-center shadow-2xl transform translate-y-12 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500">
+                          <ArrowRight size={20} />
+                        </div>
                       </div>
                     </div>
-                    
-                    <Link href={`/marketplace/${p.id}`}>
-                      <h3 className="font-bold text-forest text-xl mb-1 hover:text-harvest transition-colors line-clamp-1 italic tracking-tight">
+
+                    <div className="px-2 space-y-3">
+                      <div className="flex items-center justify-between">
+                         <div className="flex items-center gap-2">
+                            <MapPin size={12} className="text-harvest" />
+                            <span className="text-[10px] font-semibold text-stone/40 italic truncate max-w-[100px]">{p.profiles?.location?.split(',')[0]}</span>
+                         </div>
+                         <div className="flex items-center gap-1 bg-chalk/50 px-2 py-0.5 rounded-lg border border-clay/10">
+                            <Star size={10} className="fill-harvest text-harvest" />
+                            <span className="text-[10px] font-bold text-forest">{p.profiles?.reputation_score}% Trust</span>
+                         </div>
+                      </div>
+
+                      <h3 className="font-bold text-stone text-base md:text-lg group-hover:text-forest transition-colors line-clamp-1 italic leading-tight">
                         {p.name}
                       </h3>
-                    </Link>
-                    
-                    <div className="flex items-end justify-between pt-1">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-stone tracking-widest">Price / kg</span>
-                        <p className="text-forest font-bold text-2xl tracking-tighter tabular-nums">
-                          ${(p.price_per_kg / 15600).toFixed(2)}
-                        </p>
+
+                      <div className="flex items-end justify-between pt-2 border-t border-slate-100">
+                        <div className="flex flex-col">
+                          <span className="text-[9px] font-semibold text-stone/30 mb-0.5 italic">Price</span>
+                          <p className="text-forest font-bold text-xl tabular-nums leading-none">
+                            ${p.price_per_kg?.toLocaleString()}
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-bold text-stone/30 italic">/ per KG</span>
                       </div>
-                      <Link href={`/marketplace/${p.id}`}>
-                        <Button variant="ghost" size="sm" className="rounded-full text-stone hover:text-forest group/btn font-bold text-[10px] tracking-widest">
-                          Details <ArrowRight size={14} className="ml-1 transition-transform group-hover/btn:translate-x-1" />
-                        </Button>
-                      </Link>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </Link>
             ))}
           </div>
         )}
       </main>
 
       <Link href={user ? "/dashboard" : "/login"}>
-        <Button className="md:hidden fixed bottom-6 right-6 w-14 h-14 rounded-full bg-forest text-chalk shadow-2xl z-[60] p-0 active:scale-90 transition-transform">
-          {user ? <LayoutDashboard size={24} /> : <LogIn size={24} />}
+        <Button className="md:hidden fixed bottom-8 right-8 w-16 h-16 rounded-[2rem] bg-forest text-white shadow-[0_30px_60px_rgba(27,67,50,0.5)] z-[110] p-0 active:scale-90 transition-transform flex items-center justify-center">
+          {user ? <LayoutDashboard size={28} /> : <LogIn size={28} />}
         </Button>
       </Link>
     </div>

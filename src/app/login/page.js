@@ -3,7 +3,7 @@ import React, { useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Loader2, KeyRound, Mail, ArrowRight } from 'lucide-react'
+import { Loader2, KeyRound, Mail, ArrowRight, Sparkles, ArrowLeft } from 'lucide-react'
 
 export default function Login() {
   const { login } = useAuth()
@@ -21,74 +21,105 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white p-6 font-raleway">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-10">
-          <div className="inline-block p-4 bg-chalk rounded-[2rem] border border-clay/20 mb-6 shadow-sm">
-            <Image src="/light.png" alt="Logo" width={48} height={48} className="mx-auto" />
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#FAFAFA] p-6 font-raleway relative">
+      
+      <div className="absolute top-8 left-8">
+        <Link 
+          href="/" 
+          className="flex items-center gap-2 text-stone/40 hover:text-forest transition-all group active:scale-95"
+        >
+          <div className="w-10 h-10 rounded-full bg-white border border-clay/50 flex items-center justify-center shadow-sm group-hover:shadow-md transition-all">
+            <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
           </div>
-          <h2 className="text-3xl font-bold text-forest tracking-tighter uppercase italic">Welcome back</h2>
-          <p className="text-stone/60 text-sm mt-2 italic lowercase">Authentication required to access the global node.</p>
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] hidden sm:block">Back to Node</span>
+        </Link>
+      </div>
+
+      <div className="w-full max-w-md">
+        
+        <div className="text-center mb-10">
+          <Link href="/" className="inline-block group transition-transform hover:scale-105 active:scale-95">
+            <div className="flex items-center justify-center gap-3">
+               <Image src="/light.png" alt="Logo" width={40} height={40} className="object-contain" />
+               <span className="text-2xl font-bold text-forest tracking-tighter uppercase">Harsa</span>
+            </div>
+          </Link>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6 border border-clay/30 p-8 md:p-10 rounded-[2.5rem] shadow-sm bg-white/50 relative overflow-hidden">
-          <div className="absolute -top-10 -right-10 opacity-[0.03] pointer-events-none">
-            <KeyRound size={150} className="rotate-12 text-forest" />
-          </div>
-
-          <div className="space-y-1.5 relative z-10 text-left">
-            <label className="text-[10px] font-bold text-stone uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
-              <Mail size={12} className="text-harvest" /> Email address
-            </label>
-            <input 
-              type="email" 
-              required
-              placeholder="e.g. vibe@harsa.trade"
-              className="w-full px-5 py-4 rounded-2xl bg-chalk/50 border border-clay outline-none transition-all text-sm text-slate-700 focus:ring-4 focus:ring-forest/5 focus:border-forest/30"
-              onChange={e => setForm({...form, email: e.target.value})}
-            />
-          </div>
-
-          <div className="space-y-1.5 relative z-10 text-left">
-            <label className="text-[10px] font-bold text-stone uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
-              <KeyRound size={12} className="text-harvest" /> Password
-            </label>
-            <input 
-              type="password" 
-              required
-              placeholder="••••••••"
-              className="w-full px-5 py-4 rounded-2xl bg-chalk/50 border border-clay outline-none transition-all text-sm text-slate-700 focus:ring-4 focus:ring-forest/5 focus:border-forest/30"
-              onChange={e => setForm({...form, password: e.target.value})}
-            />
-          </div>
-
-          <button 
-            disabled={state.loading}
-            className="w-full bg-forest text-white py-4 rounded-2xl font-bold text-sm shadow-xl shadow-forest/20 hover:bg-forest/90 transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50 mt-4 uppercase tracking-widest"
-          >
-            {state.loading ? (
-              <Loader2 className="animate-spin" size={18} />
-            ) : (
-              <>Sign In <ArrowRight size={16} /></>
-            )}
-          </button>
-
-          {state.error && (
-            <div className="p-4 bg-red-50 text-red-600 text-[10px] font-bold rounded-xl border border-red-100 flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
-              <span>Error:</span> {state.error}
+        <div className="bg-white border border-clay/50 p-8 md:p-12 rounded-[2.5rem] shadow-sm relative overflow-hidden">
+          
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-2">
+               <Sparkles size={14} className="text-harvest" />
+               <p className="text-[10px] font-bold text-stone/40 uppercase tracking-widest leading-none">Authentication</p>
             </div>
-          )}
-
-          <div className="text-center text-[11px] text-stone font-medium pt-4 tracking-tight italic">
-            Don't have an account?{' '}
-            <Link href="/register" className="text-forest font-bold underline decoration-clay underline-offset-4 hover:text-harvest transition-colors">
-              Register here
-            </Link>
+            <h2 className="text-3xl font-bold text-slate-800 tracking-tight leading-none">Welcome Back</h2>
+            <p className="text-stone/50 text-sm mt-3 font-medium leading-relaxed">
+              Securely access your node and manage your decentralized trade assets.
+            </p>
           </div>
-        </form>
+
+          <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
+            
+            <div className="space-y-2 text-left">
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1 flex items-center gap-2">
+                <Mail size={14} className="text-harvest" /> Email Address
+              </label>
+              <input 
+                type="email" 
+                required
+                placeholder="vibe@harsa.trade"
+                className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-clay/30 outline-none transition-all text-sm font-semibold text-slate-700 focus:ring-4 focus:ring-forest/5 focus:border-forest/20"
+                onChange={e => setForm({...form, email: e.target.value})}
+              />
+            </div>
+
+            <div className="space-y-2 text-left">
+              <div className="flex justify-between items-center px-1">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                  <KeyRound size={14} className="text-harvest" /> Password
+                </label>
+                <Link href="#" className="text-[10px] font-bold text-forest/40 hover:text-forest transition-colors tracking-tighter uppercase">
+                  Forgot?
+                </Link>
+              </div>
+              <input 
+                type="password" 
+                required
+                placeholder="••••••••"
+                className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-clay/30 outline-none transition-all text-sm font-semibold text-slate-700 focus:ring-4 focus:ring-forest/5 focus:border-forest/20"
+                onChange={e => setForm({...form, password: e.target.value})}
+              />
+            </div>
+
+            <button 
+              disabled={state.loading}
+              className="w-full bg-forest text-white py-5 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] shadow-xl shadow-forest/10 hover:bg-forest/95 transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50 mt-4"
+            >
+              {state.loading ? (
+                <Loader2 className="animate-spin" size={18} />
+              ) : (
+                <>Sign In to Node <ArrowRight size={16} className="text-harvest" /></>
+              )}
+            </button>
+
+            {state.error && (
+              <div className="p-4 bg-red-50 text-red-600 text-[11px] font-bold rounded-xl border border-red-100 flex items-center gap-2 animate-in fade-in slide-in-from-top-1 text-left">
+                <span className="shrink-0 uppercase">Auth Error:</span> {state.error}
+              </div>
+            )}
+
+            <div className="text-center text-[12px] text-stone/60 font-semibold pt-4">
+              New to the protocol?{' '}
+              <Link href="/register" className="text-forest font-bold underline decoration-clay underline-offset-4 hover:text-harvest transition-colors">
+                Create Account
+              </Link>
+            </div>
+          </form>
+        </div>
         
-        <p className="mt-12 text-[10px] text-stone/40 text-center font-bold uppercase tracking-[0.3em]">
-          Secure Infrastructure &copy; {new Date().getFullYear()} Harsa
+        <p className="mt-12 text-[10px] text-stone/30 text-center font-bold uppercase tracking-[0.4em]">
+          End-to-End Encrypted Infrastructure &copy; {new Date().getFullYear()}
         </p>
       </div>
     </div>
