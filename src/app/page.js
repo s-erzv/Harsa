@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -9,10 +9,14 @@ import {
   Package, ShoppingBag, Loader2,
   Database, Wallet, CheckCircle2,
   Lock, MessageSquare, Cpu, Search, Play,
-  ExternalLink, Layers, Sparkles, Coins
+  ExternalLink, Layers, Sparkles, Navigation,
+  QrCode, ScanLine, Map as MapIcon, Activity,
+  Check
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import Script from 'next/script';
+import { QRCodeSVG } from 'qrcode.react';
 
 export default function LandingPage() {
   const { user, supabase } = useAuth();
@@ -20,6 +24,10 @@ export default function LandingPage() {
   const [mobileMenu, setMobileMenu] = useState(false);
   const [realData, setRealData] = useState({ products: 0, transactions: 0, prices: [] });
   const [loading, setLoading] = useState(true);
+  
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const [googleReady, setGoogleReady] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -43,172 +51,297 @@ export default function LandingPage() {
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
+  useEffect(() => {
+    const initMap = () => {
+      if (!mapRef.current || !window.google || !window.google.maps || mapInstanceRef.current) return;
+
+      try {
+        const map = new window.google.maps.Map(mapRef.current, {
+          center: { lat: -6.2088, lng: 106.8456 },
+          zoom: 5,
+          styles: mapStyle,
+          disableDefaultUI: true,
+        });
+
+        mapInstanceRef.current = map;
+
+        const locations = [
+          { lat: -6.9175, lng: 107.6191 },
+          { lat: -7.2575, lng: 112.7521 },
+          { lat: -7.7956, lng: 110.3695 },
+          { lat: -0.9478, lng: 100.4172 },
+        ];
+
+        locations.forEach((pos) => {
+          new window.google.maps.Marker({
+            position: pos,
+            map: map,
+            label: { text: "🌿", fontSize: "16px" },
+            icon: { path: window.google.maps.SymbolPath.CIRCLE, scale: 0 }
+          });
+        });
+      } catch (err) {
+        console.error("Map Init Error:", err);
+      }
+    };
+
+    if (googleReady) {
+      initMap();
+    }
+  }, [googleReady]);
+
   return (
     <div className="min-h-screen bg-background text-foreground font-raleway selection:bg-forest selection:text-white overflow-x-hidden text-left transition-colors duration-500">
       
+      <Script 
+        id="google-maps-landing"
+        src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY}&libraries=places`}
+        strategy="afterInteractive"
+        onLoad={() => setGoogleReady(true)}
+      />
+
       <nav className={`fixed w-full z-[100] transition-all duration-500 px-4 ${isScrolled ? 'top-2' : 'top-0'}`}>
-        <div className={`max-w-7xl mx-auto flex items-center justify-between transition-all duration-500 ${isScrolled ? 'bg-card/80 backdrop-blur-xl py-3 px-6 rounded-[2.5rem] shadow-2xl border border-border' : 'bg-transparent py-8 px-2'}`}>
+        <div className={`max-w-7xl mx-auto flex items-center justify-between transition-all duration-500 ${isScrolled ? 'bg-card/80 backdrop-blur-xl py-3 px-4 md:px-6 rounded-[2rem] shadow-2xl border border-border' : 'bg-transparent py-6 md:py-8 px-2'}`}>
           <Link href="/" className="flex items-center gap-2 group">
             <img src="/light.png" alt="Logo" className="h-8 md:h-10 w-auto group-hover:rotate-6 transition-transform dark:hidden" />
             <img src="/dark.png" alt="Logo" className="h-8 md:h-10 w-auto group-hover:rotate-6 transition-transform hidden dark:block" />
-            <span className="text-xl md:text-2xl font-semibold italic leading-none">Harsa.</span>
+            <span className="text-lg md:text-2xl font-semibold italic leading-none">Harsa.</span>
           </Link>
           
-          <div className="hidden lg:flex items-center gap-8 text-[10px] font-semibold ">
+          <div className="hidden lg:flex items-center gap-8 text-[10px] font-semibold uppercase tracking-widest">
             <a href="#protocol" className="hover:text-harvest transition-colors opacity-60 hover:opacity-100 italic">Protocol</a>
-            <a href="#demo" className="hover:text-harvest transition-colors opacity-60 hover:opacity-100 italic">Lab Demo</a>
+            <a href="#demo" className="hover:text-harvest transition-colors opacity-60 hover:opacity-100 italic">Demo</a>
+            <a href="#nodes" className="hover:text-harvest transition-colors opacity-60 hover:opacity-100 italic">Nodes</a>
             <Link href="/marketplace" className="bg-muted px-5 py-2 rounded-xl text-foreground flex items-center gap-2 border border-border hover:bg-card transition-all italic shadow-inner">
                <Globe size={14} className="text-harvest" /> Live Node Market
             </Link>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
             <ThemeToggle />
             {user ? (
-              <Link href="/dashboard" className="bg-forest dark:bg-harvest text-white px-6 py-3 rounded-2xl text-[10px] font-bold tracking-widest shadow-2xl active:scale-95 transition-all">DASHBOARD</Link>
+              <Link href="/dashboard" className="bg-forest dark:bg-harvest text-white px-4 md:px-6 py-2.5 md:py-3 rounded-xl md:rounded-2xl text-[9px] md:text-[10px] font-bold tracking-widest shadow-xl active:scale-95 transition-all">DASHBOARD</Link>
             ) : (
-              <Link href="/login" className="bg-forest dark:bg-harvest text-white px-6 py-3 rounded-2xl text-[10px] font-bold tracking-widest shadow-2xl active:scale-95 transition-all ">Enter Network</Link>
+              <Link href="/login" className="bg-forest dark:bg-harvest text-white px-4 md:px-6 py-2.5 md:py-3 rounded-xl md:rounded-2xl text-[9px] md:text-[10px] font-bold tracking-widest shadow-xl active:scale-95 transition-all ">ACCESS</Link>
             )}
-            <button className="lg:hidden p-3 text-foreground bg-muted rounded-2xl active:scale-90 transition-all border border-border" onClick={() => setMobileMenu(true)}>
-              <Menu size={20} />
+            <button className="lg:hidden p-2.5 text-foreground bg-muted rounded-xl active:scale-90 transition-all border border-border" onClick={() => setMobileMenu(true)}>
+              <Menu size={18} />
             </button>
           </div>
         </div>
       </nav>
  
       {mobileMenu && (
-        <div className="fixed inset-0 z-[110] bg-background p-8 animate-in fade-in zoom-in duration-300 flex flex-col overflow-hidden">
-          <div className="flex justify-between items-center mb-16">
-             <img src="/light.png" alt="Harsa" className="h-10 w-auto dark:hidden" />
-             <img src="/dark.png" alt="Harsa" className="h-10 w-auto hidden dark:block" />
-             <button onClick={() => setMobileMenu(false)} className="p-4 bg-muted rounded-[1.5rem] active:scale-90 transition-all border border-border"><X size={24} className="text-foreground" /></button>
+        <div className="fixed inset-0 z-[110] bg-background p-6 md:p-8 animate-in fade-in zoom-in duration-300 flex flex-col overflow-hidden">
+          <div className="flex justify-between items-center mb-12 md:mb-16">
+             <img src="/light.png" alt="Harsa" className="h-8 md:h-10 w-auto dark:hidden" />
+             <img src="/dark.png" alt="Harsa" className="h-8 md:h-10 w-auto hidden dark:block" />
+             <button onClick={() => setMobileMenu(false)} className="p-3 bg-muted rounded-xl active:scale-90 transition-all border border-border"><X size={20} className="text-foreground" /></button>
           </div>
-          <div className="flex flex-col gap-10 text-6xl font-semibold italic">
+          <div className="flex flex-col gap-6 md:gap-10 text-4xl md:text-6xl font-semibold italic">
             <a href="#protocol" onClick={() => setMobileMenu(false)} className="hover:text-harvest transition-colors">Protocol.</a>
             <a href="#demo" onClick={() => setMobileMenu(false)} className="hover:text-harvest transition-colors">Lab.</a>
+            <a href="#nodes" onClick={() => setMobileMenu(false)} className="hover:text-harvest transition-colors">Nodes.</a>
             <Link href="/marketplace" onClick={() => setMobileMenu(false)} className="text-harvest underline decoration-border underline-offset-[12px]">Market.</Link>
           </div>
-          <div className="mt-auto pb-10 flex flex-col gap-4">
+          <div className="mt-auto pb-6 md:pb-10 flex flex-col gap-4">
             <ThemeToggle />
-            <Link href={user ? "/dashboard" : "/login"} className="block w-full bg-forest dark:bg-harvest text-white py-7 rounded-[2.5rem] text-center font-bold shadow-2xl active:scale-95 transition-all">
+            <Link href={user ? "/dashboard" : "/login"} className="block w-full bg-forest dark:bg-harvest text-white py-5 md:py-7 rounded-2xl md:rounded-[2.5rem] text-center font-bold shadow-2xl active:scale-95 transition-all">
               {user ? 'ACCESS DASHBOARD' : 'INITIALIZE WALLET'}
             </Link>
           </div>
         </div>
       )}
  
-      <section className="relative pt-40 pb-24 md:pt-64 md:pb-52 px-6 overflow-hidden">
+      <section className="relative pt-32 pb-16 md:pt-64 md:pb-52 px-4 md:px-6 overflow-hidden">
         <div className="absolute top-0 right-0 w-full md:w-1/2 h-full bg-muted/40 -skew-x-12 translate-x-1/4 pointer-events-none -z-10" />
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-harvest/10 rounded-full blur-[120px] -z-10" />
+        <div className="absolute top-1/4 left-1/4 w-72 md:w-96 h-72 md:h-96 bg-harvest/10 rounded-full blur-[80px] md:blur-[120px] -z-10" />
         
-        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-24 items-center">
-          <div className="space-y-12 relative z-10">
-            <div className="inline-flex items-center gap-3 py-2.5 px-6 rounded-full bg-forest dark:bg-harvest/10 text-white dark:text-harvest text-[9px] font-bold tracking-[0.3em]  border border-white/10 dark:border-harvest/20 shadow-2xl">
-              <Sparkles size={12} className="text-harvest" /> Arb-Sepolia Protocol Active
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 lg:gap-24 items-center">
+          <div className="space-y-8 md:space-y-12 relative z-10 text-center lg:text-left">
+            <div className="inline-flex items-center gap-3 py-2 px-4 md:px-6 rounded-full bg-forest dark:bg-harvest/10 text-white dark:text-harvest text-[8px] md:text-[9px] font-bold tracking-[0.3em] border border-white/10 dark:border-harvest/20 shadow-2xl">
+              <Sparkles size={10} className="text-harvest" /> Arb-Sepolia Protocol Active
             </div>
-            <h1 className="text-6xl md:text-[8rem] font-semibold text-foreground leading-[0.85] italic">
-              Global <br /> 
-              <span className="text-forest dark:text-harvest">Sourcing</span><br/>
+            <h1 className="text-5xl md:text-[8rem] font-semibold text-foreground leading-[1.1] md:leading-[0.85] italic tracking-tighter">
+              Global <br className="hidden md:block" /> 
+              <span className="text-forest dark:text-harvest">Sourcing</span><br className="hidden md:block" />
               <span className="opacity-20 italic">Protocol.</span>
             </h1>
-            <p className="text-stone/50 text-xl md:text-2xl max-w-xl leading-relaxed font-medium border-l-2 border-harvest pl-8 italic">
+            <p className="text-stone/50 text-base md:text-2xl max-w-xl mx-auto lg:mx-0 leading-relaxed font-medium border-l-0 lg:border-l-2 border-harvest lg:pl-8 italic px-4 lg:px-0">
               Decentralized supply chain ecosystem. Liquify agricultural assets on Arbitrum L2 with immutable escrow security.
             </p>
-            <div className="flex flex-col sm:flex-row gap-5 pt-8">
-              <Link href="/marketplace" className="bg-forest dark:bg-harvest text-white px-12 py-7 rounded-[3rem] font-bold text-[11px] tracking-[0.3em]  shadow-2xl shadow-forest/20 dark:shadow-harvest/20 hover:scale-[1.03] active:scale-95 transition-all flex items-center justify-center gap-4">
-                Secure Acquisition <ArrowRight size={20} />
+            <div className="flex flex-col sm:flex-row gap-4 md:gap-5 pt-4 md:pt-8 justify-center lg:justify-start px-4 md:px-0">
+              <Link href="/marketplace" className="w-full sm:w-auto bg-forest dark:bg-harvest text-white px-8 md:px-12 py-5 md:py-7 rounded-2xl md:rounded-[3rem] font-bold text-[10px] md:text-[11px] tracking-[0.3em] shadow-2xl hover:scale-[1.03] active:scale-95 transition-all flex items-center justify-center gap-4 uppercase">
+                Secure Acquisition <ArrowRight size={18} />
               </Link>
-              <Link href="#protocol" className="bg-card text-foreground px-12 py-7 rounded-[3rem] font-semibold text-[11px] tracking-[0.3em]  border border-border flex items-center justify-center active:scale-95 transition-all hover:bg-muted shadow-sm">
+              <Link href="https://xislqbfngvonwewkmbmv.supabase.co/storage/v1/object/public/avatars/Harsa.pdf" target="_blank" className="w-full sm:w-auto bg-card text-foreground px-8 md:px-12 py-5 md:py-7 rounded-2xl md:rounded-[3rem] font-semibold text-[10px] md:text-[11px] tracking-[0.3em] border border-border flex items-center justify-center active:scale-95 transition-all hover:bg-muted shadow-sm uppercase">
                 Whitepaper
               </Link>
             </div>
           </div>
  
-          <div className="relative group animate-in fade-in zoom-in duration-1000">
-            <div className="absolute -inset-8 bg-forest/5 dark:bg-harvest/5 rounded-[5rem] blur-3xl opacity-50" />
-            <div className="relative bg-card border-2 border-border rounded-[4rem] p-10 md:p-14 shadow-2xl space-y-12 overflow-hidden">
-              <div className="absolute top-0 right-0 p-12 opacity-[0.03] pointer-events-none rotate-12"><Cpu size={240} /></div>
+          <div className="relative group px-4 md:px-0 animate-in fade-in zoom-in duration-1000">
+            <div className="absolute -inset-4 md:-inset-8 bg-forest/5 dark:bg-harvest/5 rounded-[3rem] md:rounded-[5rem] blur-2xl md:blur-3xl opacity-50" />
+            <div className="relative bg-card border-2 border-border rounded-[2.5rem] md:rounded-[4rem] p-6 md:p-14 shadow-2xl space-y-8 md:space-y-12 overflow-hidden text-left">
+              <div className="absolute top-0 right-0 p-6 md:p-12 opacity-[0.03] pointer-events-none rotate-12"><Cpu size={120} className="md:w-60 md:h-60" /></div>
               
               <div className="flex justify-between items-start">
-                <div className="space-y-2">
-                   <p className="text-[10px] font-bold text-stone/40  tracking-widest leading-none">Settlement Engine</p>
-                   <h3 className="text-3xl font-semibold italic text-forest dark:text-harvest leading-none ">Arbitrum L2 Node</h3>
+                <div className="space-y-1 md:space-y-2">
+                   <p className="text-[8px] md:text-[10px] font-bold text-stone/40 tracking-widest leading-none uppercase">Settlement Engine</p>
+                   <h3 className="text-xl md:text-3xl font-semibold italic text-forest dark:text-harvest leading-none">Arbitrum L2 Node</h3>
                 </div>
-                <div className="p-4 bg-muted rounded-[2rem] border border-border shadow-inner">
-                   <Layers className="text-harvest" size={28} />
+                <div className="p-3 md:p-4 bg-muted rounded-xl md:rounded-[2rem] border border-border shadow-inner">
+                   <Layers className="text-harvest w-5 h-5 md:w-7 md:h-7" size={28} />
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-6 relative z-10">
-                <div className="bg-muted p-8 rounded-[2.5rem] border border-border shadow-sm group-hover:border-harvest/30 transition-colors">
-                  <p className="text-[9px] font-bold text-stone/40  mb-4 tracking-widest italic">Inventory Nodes</p>
-                  <p className="text-5xl font-semibold text-foreground leading-none tabular-nums italic">{realData.products}<span className="text-xs opacity-20 ml-2">SKU</span></p>
+              <div className="grid grid-cols-2 gap-4 md:gap-6 relative z-10">
+                <div className="bg-muted p-4 md:p-8 rounded-2xl md:rounded-[2.5rem] border border-border shadow-sm group-hover:border-harvest/30 transition-colors">
+                  <p className="text-[7px] md:text-[9px] font-bold text-stone/40 mb-2 md:mb-4 tracking-widest italic uppercase">Inventory Nodes</p>
+                  <p className="text-2xl md:text-5xl font-semibold text-foreground leading-none tabular-nums italic">{realData.products}<span className="text-[10px] md:text-xs opacity-20 ml-1 md:ml-2">SKU</span></p>
                 </div>
-                <div className="bg-muted p-8 rounded-[2.5rem] border border-border shadow-sm group-hover:border-harvest/30 transition-colors">
-                  <p className="text-[9px] font-bold text-stone/40  mb-4 tracking-widest italic">TPS Latency</p>
-                  <p className="text-5xl font-semibold text-foreground leading-none tabular-nums italic">0.2<span className="text-xs opacity-20 ml-2">MS</span></p>
+                <div className="bg-muted p-4 md:p-8 rounded-2xl md:rounded-[2.5rem] border border-border shadow-sm group-hover:border-harvest/30 transition-colors">
+                  <p className="text-[7px] md:text-[9px] font-bold text-stone/40 mb-2 md:mb-4 tracking-widest italic uppercase">TPS Latency</p>
+                  <p className="text-2xl md:text-5xl font-semibold text-foreground leading-none tabular-nums italic">0.2<span className="text-[10px] md:text-xs opacity-20 ml-1 md:ml-2">MS</span></p>
                 </div>
               </div>
 
-              <div className="pt-6 border-t border-border/50">
-                <div className="flex justify-between items-center bg-forest dark:bg-harvest text-white p-6 rounded-[2.5rem] shadow-2xl group-hover:scale-[1.02] transition-transform">
-                  <div className="flex items-center gap-4">
-                     <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                     <span className="text-[10px] font-bold tracking-widest  italic">On-Chain Consensus Active</span>
+              <div className="pt-4 md:pt-6 border-t border-border/50">
+                <div className="flex justify-between items-center bg-forest dark:bg-harvest text-white p-4 md:p-6 rounded-2xl md:rounded-[2.5rem] shadow-2xl group-hover:scale-[1.02] transition-transform">
+                  <div className="flex items-center gap-3 md:gap-4">
+                     <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                     <span className="text-[8px] md:text-[10px] font-bold tracking-widest italic uppercase">Consensus Active</span>
                   </div>
-                  <CheckCircle2 size={24} />
+                  <CheckCircle2 size={18} className="md:w-6 md:h-6" />
                 </div>
               </div>
             </div>
           </div>
         </div>
       </section>
- 
-      <section id="protocol" className="py-32 md:py-52 bg-card/30 border-y border-border px-6">
+
+      <section id="nodes" className="py-16 md:py-32 px-4 md:px-6 scroll-mt-20">
         <div className="max-w-7xl mx-auto">
-          <div className="grid lg:grid-cols-12 gap-16 items-end mb-32">
-            <div className="lg:col-span-8 space-y-8">
-              <Badge className="bg-harvest/10 text-harvest font-bold px-6 py-2.5 rounded-full border border-harvest/20 text-[10px] tracking-[0.4em]  italic">Infrastructural DeFi</Badge>
-              <h2 className="text-5xl md:text-8xl font-semibold leading-[0.9] italic lowercase">Financial <br className="hidden md:block"/> sovereignty <br/> for producers<span className="text-harvest">.</span></h2>
+          <div className="bg-card border-2 border-border rounded-[2.5rem] md:rounded-[4rem] overflow-hidden shadow-2xl relative text-left">
+            <div className="grid lg:grid-cols-12">
+              <div className="lg:col-span-4 p-8 md:p-14 space-y-6 md:space-y-8 flex flex-col justify-center border-b lg:border-b-0 lg:border-r border-border">
+                <div className="p-3 bg-harvest/10 rounded-2xl text-harvest w-fit border border-harvest/20">
+                  <MapIcon size={24} />
+                </div>
+                <div className="space-y-3 md:space-y-4">
+                  <h2 className="text-3xl md:text-4xl font-semibold italic tracking-tighter leading-none lowercase">Global node <br className="hidden md:block" /> distribution<span className="text-harvest">.</span></h2>
+                  <p className="text-stone/50 text-sm leading-relaxed italic">
+                    Visualize the network of producers and transit points across the Harsa ecosystem. Real-time geographic telemetry powered by L2.
+                  </p>
+                </div>
+                <div className="pt-4 md:pt-6 grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[8px] md:text-[9px] font-black text-stone/40 uppercase tracking-widest">Active Hubs</p>
+                    <p className="text-xl md:text-2xl font-bold italic">12 Nodes</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[8px] md:text-[9px] font-black text-stone/40 uppercase tracking-widest">Uptime</p>
+                    <p className="text-xl md:text-2xl font-bold italic text-emerald-500">99.9%</p>
+                  </div>
+                </div>
+              </div>
+              <div className="lg:col-span-8 h-[350px] md:h-[600px] relative">
+                <div ref={mapRef} className="w-full h-full grayscale-[0.5] dark:grayscale-[0.8] opacity-80" />
+                <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_100px_rgba(0,0,0,0.1)] md:shadow-[inset_0_0_150px_rgba(0,0,0,0.2)]" />
+              </div>
             </div>
-            <div className="lg:col-span-4 pb-4">
-               <p className="text-stone/50 font-medium text-xl leading-relaxed italic border-l-2 border-border pl-8 ">By abstracting blockchain complexity, Harsa empowers local nodes to access global liquidity pools directly.</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-            <FeatureCard icon={<Database className="text-harvest" size={32} />} title="Immutable Ledger" desc="Every transaction node is cryptographically secured on Arbitrum. Transparent, verifiable, and permanent provenance." />
-            <FeatureCard icon={<Lock className="text-harvest" size={32} />} title="Escrow Staking" desc="Liquidity is locked in Smart Contracts and only released upon multisig verified delivery events." />
-            <FeatureCard icon={<Zap className="text-harvest" size={32} />} title="Real-time Settlement" desc="Eliminating 30-day payment cycles. Settlements occur instantly once logistics node synchronization is confirmed." />
           </div>
         </div>
       </section>
  
-      <section id="demo" className="py-32 md:py-52 px-6 relative overflow-hidden">
+      <section id="protocol" className="py-20 md:py-52 bg-card/30 border-y border-border px-4 md:px-6 scroll-mt-20 text-left">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-24 space-y-4">
-             <h2 className="text-4xl md:text-7xl font-semibold leading-none italic italic">Protocol in Action<span className="text-harvest">.</span></h2>
-             <p className="text-stone/40 text-[11px] font-bold  tracking-[0.4em]">Harsa Node Terminal Demo</p>
+          <div className="grid lg:grid-cols-12 gap-10 md:gap-16 items-end mb-16 md:mb-32">
+            <div className="lg:col-span-8 space-y-6 md:space-y-8">
+              <Badge className="bg-harvest/10 text-harvest font-bold px-5 md:px-6 py-2 md:py-2.5 rounded-full border border-harvest/20 text-[9px] md:text-[10px] tracking-[0.4em] italic uppercase">Infrastructural DeFi</Badge>
+              <h2 className="text-4xl md:text-8xl font-semibold leading-[1.1] md:leading-[0.9] italic lowercase">Financial <br className="hidden md:block"/> sovereignty <br className="hidden md:block"/> for producers<span className="text-harvest">.</span></h2>
+            </div>
+            <div className="lg:col-span-4 pb-0 md:pb-4">
+               <p className="text-stone/50 font-medium text-base md:text-xl leading-relaxed italic border-l-2 border-border pl-6 md:pl-8">By abstracting blockchain complexity, Harsa empowers local nodes to access global liquidity pools directly.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10">
+            <FeatureCard icon={<Database size={32} />} title="Immutable Ledger" desc="Every transaction node is cryptographically secured on Arbitrum. Transparent, verifiable, and permanent provenance." />
+            <FeatureCard icon={<Lock size={32} />} title="Escrow Staking" desc="Liquidity is locked in Smart Contracts and only released upon multisig verified delivery events." />
+            <FeatureCard icon={<Zap size={32} />} title="Real-time Settlement" desc="Eliminating 30-day payment cycles. Settlements occur instantly once logistics node synchronization is confirmed." />
+          </div>
+        </div>
+      </section>
+
+      <section className="py-20 md:py-32 px-4 md:px-6 overflow-hidden text-left">
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 md:gap-24 items-center">
+          <div className="relative group">
+            <div className="absolute -inset-10 bg-harvest/10 rounded-full blur-3xl opacity-30" />
+            <div className="relative bg-card border-2 border-border rounded-[2.5rem] md:rounded-[4rem] p-8 md:p-16 flex items-center justify-center shadow-2xl">
+               <div className="relative">
+                  <div className="absolute -inset-4 border-2 border-harvest rounded-2xl md:rounded-3xl animate-[pulse_2s_infinite] opacity-40" />
+                  <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-inner border border-border">
+                    <QRCodeSVG 
+                      value="https://harsa.network/track/TX-HARSA-001" 
+                      size={160}
+                      className="md:w-[200px] md:h-[200px]"
+                      level="H"
+                      includeMargin={false}
+                    />
+                  </div>
+                  <div className="absolute -top-6 -right-6 md:-top-10 md:-right-10 p-3 md:p-4 bg-forest dark:bg-harvest text-white rounded-xl md:rounded-2xl shadow-2xl rotate-12 flex items-center gap-2">
+                     <ScanLine size={18} className="md:w-5 md:h-5" />
+                     <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">Scanning...</span>
+                  </div>
+               </div>
+            </div>
+          </div>
+          <div className="space-y-8 md:space-y-10">
+            <Badge className="bg-forest/10 text-forest dark:text-harvest border border-forest/20 text-[9px] md:text-[10px] tracking-[0.4em] italic uppercase">Atomic Proof</Badge>
+            <h2 className="text-4xl md:text-7xl font-semibold italic tracking-tighter leading-[1.1] md:leading-[0.9] lowercase">QR verified <br className="hidden md:block" /> hand-offs<span className="text-harvest">.</span></h2>
+            <p className="text-stone/50 text-lg md:text-xl leading-relaxed italic max-w-lg">
+              Seamlessly bridge physical assets and digital settlements. Scan to update logistics nodes or release escrowed liquidity instantly.
+            </p>
+            <div className="space-y-4 md:space-y-6 pt-2 md:pt-4">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-muted rounded-xl flex items-center justify-center text-harvest shrink-0"><Check size={20} /></div>
+                <span className="text-sm md:text-base font-bold italic">Zero-Knowledge Proof compatible</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-muted rounded-xl flex items-center justify-center text-harvest shrink-0"><Check size={20} /></div>
+                <span className="text-sm md:text-base font-bold italic">Immutable logistics provenance</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+ 
+      <section id="demo" className="py-20 md:py-52 px-4 md:px-6 relative overflow-hidden scroll-mt-20">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16 md:mb-24 space-y-4">
+             <h2 className="text-4xl md:text-7xl font-semibold italic tracking-tighter leading-none lowercase text-foreground">Protocol in Action<span className="text-harvest">.</span></h2>
+             <p className="text-stone/40 text-[10px] md:text-[11px] font-black uppercase tracking-[0.4em]">Harsa Node Terminal Demo</p>
           </div>
           
-          <div className="relative max-w-5xl mx-auto group">
-            <div className="absolute -inset-10 bg-forest/10 dark:bg-harvest/10 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-1000" />
-            <div className="relative aspect-video rounded-[3rem] md:rounded-[4rem] overflow-hidden bg-card shadow-2xl border-[12px] border-muted"> 
-               {/* <div className="absolute inset-0 flex items-center justify-center bg-background/20 backdrop-blur-sm z-10 group-hover:backdrop-blur-0 transition-all">
-                  <button className="w-28 h-28 bg-harvest text-white rounded-3xl flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all group/btn rotate-12 hover:rotate-0">
-                     <Play fill="currentColor" size={36} className="ml-2" />
+          <div className="relative max-w-5xl mx-auto group px-2 md:px-0">
+            <div className="absolute -inset-1 bg-harvest/20 rounded-2xl md:rounded-[4.2rem] opacity-0 group-hover:opacity-100 transition-all duration-700" />
+            <div className="relative aspect-video rounded-2xl md:rounded-[4rem] overflow-hidden bg-card shadow-2xl border-[6px] md:border-[12px] border-muted"> 
+               <div className="absolute inset-0 flex items-center justify-center bg-background/10 z-20 group-hover:bg-transparent transition-all duration-500">
+                  <button className="w-16 h-16 md:w-32 md:h-32 bg-harvest text-white rounded-2xl md:rounded-[2.5rem] flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all group/btn rotate-12 hover:rotate-0 border-2 md:border-4 border-background focus:outline-none">
+                     <Play fill="currentColor" size={24} className="md:w-10 md:h-10 ml-1 md:ml-2" />
                   </button>
-               </div>  */}
-               <iframe className="w-full h-full opacity-60 scale-105" src="https://www.youtube.com/embed/dQw4w9WgXcQ?controls=0&autoplay=1&mute=1&loop=1&playlist=dQw4w9WgXcQ" />
+               </div> 
+               <iframe className="w-full h-full opacity-60 group-hover:opacity-100 transition-all grayscale-[0.5] group-hover:grayscale-0" src="https://www.youtube.com/embed/dQw4w9WgXcQ?controls=0&autoplay=1&mute=1&loop=1&playlist=dQw4w9WgXcQ" />
             </div>
              
-            <div className="hidden lg:block absolute -right-24 bottom-1/4 bg-card p-10 rounded-[3rem] shadow-2xl border-2 border-border transform rotate-6 hover:rotate-0 transition-all duration-700">
-               <div className="flex items-center gap-6">
-                  <div className="w-14 h-14 bg-emerald-500/10 text-emerald-500 rounded-2xl flex items-center justify-center border border-emerald-500/20">
-                     <ShieldCheck size={28} />
+            <div className="hidden lg:block absolute -right-24 bottom-1/4 bg-card p-10 rounded-[3rem] shadow-2xl border-2 border-border transform rotate-6 hover:rotate-0 transition-all duration-700 z-30">
+               <div className="flex items-center gap-6 text-left">
+                  <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-2xl flex items-center justify-center border border-emerald-500/20 shadow-inner">
+                     <ShieldCheck size={32} />
                   </div>
-                  <div className="text-left">
-                     <p className="text-[10px] font-bold text-stone/40 tracking-widest leading-none mb-1.5  italic">Contract Status</p>
-                     <p className="text-xl font-semibold italic leading-none">VERIFIED 100%</p>
+                  <div>
+                     <p className="text-[10px] font-black text-stone/40 tracking-widest leading-none mb-1.5 uppercase italic">Contract Status</p>
+                     <p className="text-xl font-bold italic tracking-tighter leading-none text-foreground uppercase">VERIFIED 100%</p>
                   </div>
                </div>
             </div>
@@ -216,29 +349,29 @@ export default function LandingPage() {
         </div>
       </section>
  
-      <section className="py-32 md:py-52 px-6 bg-card/20 overflow-hidden">
-        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-32 items-center">
-          <div className="order-2 lg:order-1 space-y-14">
-            <Step num="01" icon={<Wallet className="text-white" size={24} />} title="Identity Genesis" desc="Producer generates an L2 merchant identity via social or wallet auth. Non-custodial and secure." />
-            <Step num="02" icon={<Package className="text-white" size={24} />} title="Asset Publication" desc="Authorize harvest assets with geographic node metadata. Instantly pooled into global liquidity." />
-            <Step num="03" icon={<ShieldCheck className="text-white" size={24} />} title="Escrow Consensus" desc="Buyers lock settlement liquidity. Assets are held by the protocol until logistics hand-off." />
-            <Step num="04" icon={<CheckCircle2 className="text-white" size={24} />} title="Atomic Settlement" desc="Verified Proof of Delivery triggers the immediate release of locked funds to the node." />
+      <section className="py-20 md:py-52 px-4 md:px-6 bg-card/20 overflow-hidden border-t border-border text-left">
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 md:gap-32 items-center">
+          <div className="order-2 lg:order-1 space-y-10 md:space-y-14">
+            <Step num="01" icon={<Wallet className="text-white" size={20} />} title="Identity Genesis" desc="Producer generates an L2 merchant identity via social or wallet auth. Non-custodial and secure." />
+            <Step num="02" icon={<Package className="text-white" size={20} />} title="Asset Publication" desc="Authorize harvest assets with geographic node metadata. Instantly pooled into global liquidity." />
+            <Step num="03" icon={<ShieldCheck className="text-white" size={20} />} title="Escrow Consensus" desc="Buyers lock settlement liquidity. Assets are held by the protocol until logistics hand-off." />
+            <Step num="04" icon={<CheckCircle2 className="text-white" size={20} />} title="Atomic Settlement" desc="Verified Proof of Delivery triggers the immediate release of locked funds to the node." />
           </div>
           <div className="order-1 lg:order-2">
-            <div className="bg-forest dark:bg-harvest/10 rounded-[4rem] p-12 md:p-20 text-white dark:text-harvest relative shadow-2xl overflow-hidden border border-white/5">
-               <div className="absolute top-0 right-0 w-80 h-80 bg-harvest opacity-10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />
-               <h3 className="text-4xl md:text-7xl font-semibold leading-[0.9] mb-10 italic ">Built on <br/> Arbitrum<span className="text-harvest">.</span></h3>
-               <p className="text-white/30 dark:text-harvest/40 text-xl md:text-2xl font-medium leading-relaxed mb-16 italic lowercase">
+            <div className="bg-forest dark:bg-harvest/10 rounded-[2.5rem] md:rounded-[4rem] p-8 md:p-20 text-white dark:text-harvest relative shadow-2xl overflow-hidden border border-white/5">
+               <div className="absolute top-0 right-0 w-64 md:w-80 h-64 md:h-80 bg-harvest opacity-10 rounded-full blur-[80px] md:blur-[100px] -translate-y-1/2 translate-x-1/2" />
+               <h3 className="text-3xl md:text-7xl font-semibold leading-[1.1] md:leading-[0.9] mb-6 md:mb-10 italic uppercase">Built on <br className="hidden md:block" /> Arbitrum<span className="text-harvest">.</span></h3>
+               <p className="text-white/30 dark:text-harvest/40 text-lg md:text-2xl font-medium leading-relaxed mb-10 md:mb-16 italic lowercase">
                  Providing the most efficient DeFi experience for agricultural nodes. Ethereum-grade security with negligible latency.
                </p>
-               <div className="flex flex-wrap gap-5">
-                  <div className="bg-white/5 dark:bg-black/20 border border-white/10 px-6 py-4 rounded-2xl flex items-center gap-3">
-                     <div className="w-2 h-2 rounded-full bg-blue-400" />
-                     <span className="text-[10px] font-bold  tracking-widest italic">Base: Ethereum</span>
+               <div className="flex flex-wrap gap-4 md:gap-5">
+                  <div className="bg-white/5 dark:bg-black/20 border border-white/10 px-4 md:px-6 py-3 md:py-4 rounded-xl md:rounded-2xl flex items-center gap-2 md:gap-3">
+                     <div className="w-1.5 md:w-2 h-1.5 md:h-2 rounded-full bg-blue-400" />
+                     <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-widest italic">Base: Ethereum</span>
                   </div>
-                  <div className="bg-white/5 dark:bg-black/20 border border-white/10 px-6 py-4 rounded-2xl flex items-center gap-3">
-                     <div className="w-2 h-2 rounded-full bg-harvest" />
-                     <span className="text-[10px] font-bold  tracking-widest italic">Optimistic Consenus</span>
+                  <div className="bg-white/5 dark:bg-black/20 border border-white/10 px-4 md:px-6 py-3 md:py-4 rounded-xl md:rounded-2xl flex items-center gap-2 md:gap-3">
+                     <div className="w-1.5 md:w-2 h-1.5 md:h-2 rounded-full bg-harvest" />
+                     <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-widest italic">Optimistic Consensus</span>
                   </div>
                </div>
             </div>
@@ -246,35 +379,35 @@ export default function LandingPage() {
         </div>
       </section>
  
-      <footer className="pt-40 pb-20 px-6 bg-card border-t border-border relative overflow-hidden">
-        <div className="absolute top-0 right-0 opacity-[0.02] pointer-events-none rotate-12 -translate-y-1/4"><Globe size={800} /></div>
+      <footer className="pt-24 md:pt-40 pb-16 md:pb-20 px-4 md:px-6 bg-card border-t border-border relative overflow-hidden text-left">
+        <div className="absolute top-0 right-0 opacity-[0.02] pointer-events-none rotate-12 -translate-y-1/4"><Globe size={800} className="md:w-[800px]" /></div>
         <div className="max-w-7xl mx-auto relative z-10">
-          <div className="text-center space-y-12 mb-40">
-             <h2 className="text-6xl md:text-[10rem] font-semibold leading-[0.8] italic lowercase">
-                Empower <br/><span className="text-forest dark:text-harvest">The Source.</span>
+          <div className="text-center space-y-10 md:space-y-12 mb-24 md:mb-40">
+             <h2 className="text-5xl md:text-[10rem] font-semibold leading-[1.1] md:leading-[0.8] italic lowercase">
+                Empower <br className="hidden md:block" /><span className="text-forest dark:text-harvest">The Source.</span>
              </h2>
-             <div className="flex flex-col sm:flex-row gap-6 justify-center">
-                <Link href="/register" className="bg-forest dark:bg-harvest text-white px-14 py-8 rounded-[3rem] font-bold text-xs tracking-[0.4em]  shadow-2xl hover:scale-[1.03] active:scale-95 transition-all">Onboard Identity</Link>
-                <Link href="mailto:support@harsa.network" className="bg-muted text-foreground border border-border px-14 py-8 rounded-[3rem] font-bold text-xs tracking-[0.4em]  hover:bg-card transition-all flex items-center gap-3 shadow-sm">Support Node <ExternalLink size={18} /></Link>
+             <div className="flex flex-col sm:flex-row gap-4 md:gap-6 justify-center px-4 md:px-0">
+                <Link href="/register" className="bg-forest dark:bg-harvest text-white px-10 md:px-14 py-6 md:py-8 rounded-2xl md:rounded-[3rem] font-bold text-xs tracking-[0.4em] uppercase shadow-2xl hover:scale-[1.03] active:scale-95 transition-all">Onboard Identity</Link>
+                <Link href="mailto:support@harsa.network" className="bg-muted text-foreground border border-border px-10 md:px-14 py-6 md:py-8 rounded-2xl md:rounded-[3rem] font-bold text-xs tracking-[0.4em] uppercase hover:bg-card transition-all flex items-center gap-3 shadow-sm">Support Node <ExternalLink size={18} /></Link>
              </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-16 pt-20 border-t border-border items-center">
-            <div className="space-y-4">
-               <div className="flex items-center gap-4 text-4xl font-semibold italic">
-                 <img src="/light.png" alt="Logo" className="h-10 w-auto dark:hidden" />
-                 <img src="/dark.png" alt="Logo" className="h-10 w-auto hidden dark:block" />
+          <div className="grid md:grid-cols-2 gap-12 md:gap-16 pt-16 md:pt-20 border-t border-border items-center">
+            <div className="space-y-3 md:space-y-4">
+               <div className="flex items-center gap-3 md:gap-4 text-3xl md:text-4xl font-semibold italic leading-none">
+                 <img src="/light.png" alt="Logo" className="h-8 md:h-10 w-auto dark:hidden" />
+                 <img src="/dark.png" alt="Logo" className="h-8 md:h-10 w-auto hidden dark:block" />
                  Harsa.
                </div>
-               <p className="text-stone/30 text-[10px] font-bold  tracking-[0.3em] italic">Agricultural Decentralized Infrastructure Protocol</p>
+               <p className="text-stone/30 text-[9px] md:text-[10px] font-bold tracking-[0.3em] italic uppercase">Agricultural Decentralized Infrastructure Protocol</p>
             </div>
-            <div className="flex flex-col md:items-end space-y-8">
-               <div className="flex gap-10 text-[10px] font-bold text-stone/40  italic">
-                  <a href="#" className="hover:text-harvest transition-colors">Whitepaper</a>
+            <div className="flex flex-col md:items-end space-y-6 md:space-y-8">
+               <div className="flex flex-wrap gap-6 md:gap-10 text-[9px] md:text-[10px] font-bold text-stone/40 italic uppercase justify-start md:justify-end">
+                  <a href="https://xislqbfngvonwewkmbmv.supabase.co/storage/v1/object/public/avatars/Harsa.pdf" target="_blank" className="hover:text-harvest transition-colors">Whitepaper</a>
                   <a href="#" className="hover:text-harvest transition-colors">Audit</a>
                   <a href="#" className="hover:text-harvest transition-colors">Arbiscan</a>
                </div>
-               <div className="text-[10px] font-bold text-stone/20 tracking-widest  italic">
+               <div className="text-[9px] md:text-[10px] font-bold text-stone/20 tracking-widest italic uppercase">
                   &copy; 2026 Harsa Node Protocol
                </div>
             </div>
@@ -287,26 +420,33 @@ export default function LandingPage() {
 
 function FeatureCard({ icon, title, desc }) {
   return (
-    <div className="p-10 md:p-14 rounded-[4rem] bg-card border-2 border-border shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-700 group relative overflow-hidden">
+    <div className="p-8 md:p-14 rounded-3xl md:rounded-[4rem] bg-card border-2 border-border shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-700 group relative overflow-hidden text-left">
        <div className="absolute inset-0 bg-harvest/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-       <div className="w-20 h-20 bg-muted rounded-[2rem] flex items-center justify-center mb-10 group-hover:scale-110 group-hover:rotate-6 transition-all shadow-inner border border-border relative z-10">{icon}</div>
-       <h3 className="text-3xl font-semibold text-foreground mb-6 italic leading-none relative z-10 lowercase">{title}<span className="text-harvest">.</span></h3>
-       <p className="text-stone/50 text-base font-medium leading-relaxed pr-4 relative z-10 italic">{desc}</p>
+       <div className="w-16 h-16 md:w-20 md:h-20 bg-muted rounded-2xl md:rounded-[2rem] flex items-center justify-center mb-8 md:mb-10 group-hover:scale-110 group-hover:rotate-6 transition-all shadow-inner border border-border relative z-10 text-harvest">{icon}</div>
+       <h3 className="text-2xl md:text-3xl font-semibold text-foreground mb-4 md:mb-6 italic leading-none relative z-10 lowercase">{title}<span className="text-harvest">.</span></h3>
+       <p className="text-stone/50 text-sm md:text-base font-medium leading-relaxed pr-2 md:pr-4 relative z-10 italic">{desc}</p>
     </div>
   );
 }
 
 function Step({ num, icon, title, desc }) {
   return (
-    <div className="flex gap-10 group">
-      <div className="flex-shrink-0 w-20 h-20 bg-forest dark:bg-harvest text-white rounded-[2rem] flex items-center justify-center shadow-2xl relative transform group-hover:scale-110 group-hover:-rotate-6 transition-all duration-700">
+    <div className="flex gap-6 md:gap-10 group text-left">
+      <div className="flex-shrink-0 w-14 h-14 md:w-20 md:h-20 bg-forest dark:bg-harvest text-white rounded-2xl md:rounded-[2rem] flex items-center justify-center shadow-2xl relative transform group-hover:scale-110 group-hover:-rotate-6 transition-all duration-700">
          {icon}
-         <span className="absolute -top-3 -right-3 w-10 h-10 bg-background text-foreground border-4 border-muted rounded-full text-[12px] font-bold italic flex items-center justify-center shadow-lg">{num}</span>
+         <span className="absolute -top-2 -right-2 md:-top-3 md:-right-3 w-8 h-8 md:w-10 md:h-10 bg-background text-foreground border-2 md:border-4 border-muted rounded-full text-[10px] md:text-[12px] font-bold italic flex items-center justify-center shadow-lg">{num}</span>
       </div>
-      <div className="space-y-3 text-left">
-         <h4 className="text-2xl font-semibold text-foreground leading-tight italic lowercase">{title}<span className="text-harvest">.</span></h4>
-         <p className="text-stone/50 text-sm font-medium leading-relaxed italic">{desc}</p>
+      <div className="space-y-2 md:space-y-3">
+         <h4 className="text-xl md:text-2xl font-semibold text-foreground leading-tight italic lowercase">{title}<span className="text-harvest">.</span></h4>
+         <p className="text-stone/50 text-sm md:text-sm font-medium leading-relaxed italic">{desc}</p>
       </div>
     </div>
   );
 }
+
+const mapStyle = [
+  { "featureType": "water", "stylers": [{ "color": "#e9e9e9" }] },
+  { "featureType": "landscape", "stylers": [{ "color": "#f5f5f5" }] },
+  { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#ffffff" }] },
+  { "featureType": "poi", "stylers": [{ "visibility": "off" }] }
+];
