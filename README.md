@@ -37,6 +37,3 @@ Harsa is built on **Arbitrum Sepolia** to provide a high-performance, low-cost e
 2.  **IoT Hardware Verification:** Replacing manual farm logs with real-time sensor data (Soil moisture, GPS trackers) anchored directly to the chain.
 3.  **Arbitrum Orbit Deployment:** Building a dedicated Agri-Rollup for high-frequency IoT data and global scaling.
 4.  **DAO Governance:** Transitioning to a community-led model on Arbitrum One.
-
----
-*Built with intention and a touch of poetic logic for the Arbitrum Mini Hackathon 2026.* 🌿✨
