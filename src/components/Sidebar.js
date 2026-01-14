@@ -5,13 +5,14 @@ import {
   User, LogOut, X, ShoppingBag,
   HelpCircle, ChevronLeft, ChevronRight,
   Truck, Mail, MessageSquare, TrendingUp,
-  Plus, Store    
+  Plus, Store, Sparkles, Activity    
 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import NotificationBell from '@/components/NotificationBell'
+import OnboardingModal from '@/components/OnboardingModal'
 
 export default function Sidebar({ logout }) {
   const { user, supabase } = useAuth()
@@ -19,6 +20,7 @@ export default function Sidebar({ logout }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false) 
   const [isHelpOpen, setIsHelpOpen] = useState(false)
+  const [forceOnboarding, setForceOnboarding] = useState(false)
   const [unreadChatCount, setUnreadChatCount] = useState(0)
 
   useEffect(() => {
@@ -37,7 +39,7 @@ export default function Sidebar({ logout }) {
         .subscribe()
       return () => { supabase.removeChannel(channel) }
     }
-  }, [user])
+  }, [user, supabase])
 
   const fetchUnreadChats = async () => {
     const { data, error } = await supabase
@@ -45,7 +47,7 @@ export default function Sidebar({ logout }) {
       .select('id', { count: 'exact' })
       .eq('receiver_id', user.id)
       .eq('is_read', false)
-    if (!error) setUnreadChatCount(data.length || 0)
+    if (!error) setUnreadChatCount(data?.length || 0)
   }
 
   const mainItems = [
@@ -57,6 +59,11 @@ export default function Sidebar({ logout }) {
 
   return (
     <>     
+      <OnboardingModal 
+        forceOpen={forceOnboarding} 
+        onClose={() => setForceOnboarding(false)} 
+      />
+
       <aside className={`hidden md:flex flex-col bg-white shadow-xl border-r border-clay/30 h-screen sticky top-0 transition-all duration-300 ease-in-out z-[100] ${isCollapsed ? 'w-24' : 'w-64'}`}>
         
         <div className="p-6 flex-shrink-0 relative">
@@ -194,7 +201,7 @@ export default function Sidebar({ logout }) {
             </div>
             <div className="w-12 h-1 bg-clay/20 rounded-full mx-auto mb-6" />
             <div className="flex justify-between items-center mb-6 px-2">
-              <h2 className="text-xl font-bold text-forest italic tracking-tight">Harsa Services</h2>
+              <h2 className="text-xl font-bold text-forest italic tracking-tight uppercase">Harsa Services</h2>
               <button onClick={() => setIsMenuOpen(false)} className="p-2 bg-chalk rounded-full text-forest border border-clay active:scale-90 transition-all">
                 <X size={18} />
               </button>
@@ -208,7 +215,7 @@ export default function Sidebar({ logout }) {
                 <div className="p-2 bg-chalk rounded-xl text-forest shrink-0 flex items-center justify-center">
                   <MessageSquare size={22}/>
                 </div>
-                <span className="text-[11px] font-bold text-stone leading-tight tracking-tight">Chat</span>
+                <span className="text-[11px] font-bold text-stone leading-tight tracking-tight uppercase">Chat</span>
                 {unreadChatCount > 0 && (
                   <span className="ml-auto bg-red-500 text-white text-[10px] px-2 py-1 rounded-full font-bold">
                     {unreadChatCount} New
@@ -224,8 +231,8 @@ export default function Sidebar({ logout }) {
                   <NotificationBell />
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-bold text-stone truncate leading-tight">Notifications</span>
-                  <span className="text-[10px] text-stone/50 truncate">Latest news & updates</span>
+                  <span className="text-xs font-bold text-stone truncate leading-tight uppercase">Notifications</span>
+                  <span className="text-[10px] text-stone/50 truncate uppercase">Latest news & updates</span>
                 </div>
               </div>
 
@@ -237,12 +244,12 @@ export default function Sidebar({ logout }) {
                   <HelpCircle size={22} />
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-bold text-forest truncate leading-tight">Help Center</span>
-                  <span className="text-[10px] text-stone/50 truncate">Contact & team support</span>
+                  <span className="text-xs font-bold text-forest truncate leading-tight uppercase">Help Center</span>
+                  <span className="text-[10px] text-stone/50 truncate uppercase">Contact & team support</span>
                 </div>
               </button>
               
-              <button onClick={logout} className="mt-2 flex items-center justify-center gap-3 p-5 rounded-[1.5rem] bg-red-50 border border-red-100 active:scale-95 transition-all w-full text-red-600 font-bold text-sm">
+              <button onClick={logout} className="mt-2 flex items-center justify-center gap-3 p-5 rounded-[1.5rem] bg-red-50 border border-red-100 active:scale-95 transition-all w-full text-red-600 font-bold text-sm uppercase">
                 <LogOut size={20} className="text-red-500" />
                 Sign Out
               </button>
@@ -258,12 +265,23 @@ export default function Sidebar({ logout }) {
             <div className="w-16 h-16 bg-chalk rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-lg text-forest">
               <MessageSquare size={28} />
             </div>
-            <h3 className="text-xl font-bold text-forest mb-2 tracking-tight">Help Center</h3>
-            <p className="text-stone text-xs mb-6 leading-relaxed font-medium px-2">Having trouble with a transaction or your account? The Harsa team is here to help you anytime.</p>
-            <a href="mailto:sarahfajriarahmah@gmail.com" className="flex items-center justify-center gap-3 w-full bg-forest text-white h-14 rounded-2xl font-bold shadow-xl shadow-forest/20 hover:bg-forest/90 transition active:scale-95 mb-4 text-sm">
-              <Mail size={18} /> Email Us
-            </a>
-            <button onClick={() => setIsHelpOpen(false)} className="text-stone/40 text-[10px] font-bold uppercase tracking-widest hover:text-forest transition">Close</button>
+            <h3 className="text-xl font-bold text-forest mb-2 tracking-tight uppercase">Help Center</h3>
+            <p className="text-stone text-xs mb-6 leading-relaxed font-medium px-2">Need a refresher on how Harsa works or having trouble with a node?</p>
+            
+            <div className="space-y-3">
+                <button 
+                  onClick={() => { setIsHelpOpen(false); setForceOnboarding(true); }}
+                  className="flex items-center justify-center gap-3 w-full bg-chalk text-forest h-14 rounded-2xl font-bold border border-clay/30 hover:bg-white transition active:scale-95 text-xs uppercase tracking-wider"
+                >
+                  <Sparkles size={18} className="text-harvest" /> Guide Me
+                </button>
+
+                <a href="mailto:sarahfajriarahmah@gmail.com" className="flex items-center justify-center gap-3 w-full bg-forest text-white h-14 rounded-2xl font-bold shadow-xl shadow-forest/20 hover:bg-forest/90 transition active:scale-95 text-xs uppercase tracking-wider">
+                  <Mail size={18} /> Contact Support
+                </a>
+            </div>
+            
+            <button onClick={() => setIsHelpOpen(false)} className="mt-6 text-stone/40 text-[10px] font-bold uppercase tracking-widest hover:text-forest transition">Close</button>
           </div>
         </div>
       )}
@@ -277,7 +295,7 @@ function MobileNavLink({ item, isActive }) {
       <div className={`p-2 rounded-2xl transition-all duration-300 ${isActive ? 'bg-forest/5 text-forest' : 'text-stone/30'}`}>
         {React.cloneElement(item.icon, { size: 22, strokeWidth: isActive ? 2.5 : 2 })}
       </div>
-      <span className={`text-[9px] font-bold mt-0.5 tracking-tight transition-all duration-300 ${isActive ? 'text-forest' : 'text-stone/30'}`}>
+      <span className={`text-[9px] font-bold mt-0.5 tracking-tight transition-all duration-300 uppercase ${isActive ? 'text-forest' : 'text-stone/30'}`}>
         {item.label}
       </span>
     </Link>
@@ -288,7 +306,7 @@ function MobileMenuItem({ icon, label, path, onClick }) {
   return (
     <Link href={path} onClick={onClick} className="flex items-center gap-3 p-4 rounded-2xl bg-white border border-clay/30 active:scale-95 transition-all shadow-sm overflow-hidden">
       <div className="p-2 bg-chalk rounded-xl text-forest shrink-0 flex items-center justify-center">{icon}</div>
-      <span className="text-[11px] font-bold text-stone leading-tight tracking-tight">{label}</span>
+      <span className="text-[11px] font-bold text-stone leading-tight tracking-tight uppercase">{label}</span>
     </Link>
   )
 }
