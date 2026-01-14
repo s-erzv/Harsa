@@ -20,13 +20,30 @@ export const publicClient = createPublicClient({
   transport: http(process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL || "https://sepolia-rollup.arbitrum.io/rpc"),
 })
 
-const getEthereum = () => {
-  if (typeof window !== "undefined" && window.ethereum) return window.ethereum;
-  return null;
+// Fungsi baru untuk ambil rate pasar (ETH -> USD -> IDR)
+export const getMarketRates = async () => {
+  try {
+    const ethRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
+    const ethData = await ethRes.json();
+    const ethToUsd = ethData["ethereum"].usd;
+
+    const idrRes = await fetch("https://api.frankfurter.app/latest?from=USD&to=IDR");
+    const idrData = await idrRes.json();
+    const usdToIdr = idrData.rates.IDR;
+
+    return {
+      ethToUsd,
+      ethToIdr: ethToUsd * usdToIdr,
+      usdToIdr
+    };
+  } catch (error) {
+    console.error("Rates unavailable", error);
+    return null;
+  }
 };
 
 export const getWalletClient = async () => {
-  const eth = getEthereum();
+  const eth = typeof window !== "undefined" ? window.ethereum : null;
   if (!eth) throw new Error("METAMASK_NOT_FOUND");
   try {
     await eth.request({ method: 'eth_requestAccounts' });
@@ -34,20 +51,13 @@ export const getWalletClient = async () => {
       chain: arbitrumSepolia,
       transport: custom(eth),
     });
-    const currentChainId = await eth.request({ method: 'eth_chainId' });
-    const targetChainId = `0x${arbitrumSepolia.id.toString(16)}`; 
-    if (currentChainId !== targetChainId) {
-      await eth.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: targetChainId }],
-      });
-    }
     return walletClient;
   } catch (error) {
     throw new Error("USER_REJECTED_CONNECTION");
   }
 }
 
+// Checkout sekarang menerima priceInEth langsung tanpa perlu hitung dari USD lagi
 export const checkout = async (items, isWithNego = false, proposedPriceEth = null) => {
   const walletClient = await getWalletClient()
   const [account] = await walletClient.getAddresses()
@@ -56,8 +66,8 @@ export const checkout = async (items, isWithNego = false, proposedPriceEth = nul
   const skus = items.map(item => item.sku)
    
   const amounts = items.map(item => {
-    const rawValue = item.priceInEth || "0";
-    return parseEther(parseFloat(rawValue).toFixed(18)); 
+    // Karena basisnya sudah ETH, kita langsung parse
+    return parseEther(parseFloat(item.priceInEth).toFixed(18)); 
   })
   
   const totalValueWei = amounts.reduce((acc, curr) => acc + curr, 0n);
@@ -90,34 +100,8 @@ export const checkout = async (items, isWithNego = false, proposedPriceEth = nul
       }
     }
 
-    let negoSuccess = false;
-    if (isWithNego && blockchainIds.length > 0 && proposedPriceEth) {
-      try {
-          const txId = BigInt(blockchainIds[0].txId);
-          const proposedWei = parseEther(parseFloat(proposedPriceEth).toFixed(18));
-          const originalWei = BigInt(blockchainIds[0].amount);
-
-          if (proposedWei < originalWei) {
-              const { request: negoReq } = await publicClient.simulateContract({
-                address: contractAddress,
-                abi,
-                functionName: "proposeNegotiation",
-                args: [txId, proposedWei],
-                account,
-              });
-              const negoHash = await walletClient.writeContract(negoReq);
-              await publicClient.waitForTransactionReceipt({ hash: negoHash });
-              negoSuccess = true;
-          }
-      } catch (negoError) {
-          console.error("Nego Reverted:", negoError.shortMessage || negoError.message);
-      }
-    }
-
-    return { hash, blockchainIds, negoSuccess }
-
+    return { hash, blockchainIds }
   } catch (error) {
-    console.error("CHECKOUT_ERROR:", error.shortMessage || error.message);
     throw error;
   }
 }
@@ -153,15 +137,6 @@ export const cancelTransaction = async (blockchainTxId) => {
   return await publicClient.waitForTransactionReceipt({ hash })
 }
 
-export const getEthPrice = async () => {
-  try {
-    const response = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
-    const data = await response.json();
-    return data["ethereum"].usd; 
-  } catch (error) {
-    throw new Error("Rates unavailable");
-  }
-};
 
 export const proposeNegotiation = async (blockchainTxId, proposedPriceEth) => {
   const walletClient = await getWalletClient()

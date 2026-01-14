@@ -2,12 +2,13 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
-import { checkout, getEthPrice } from '@/utils/blockchain'
+import { checkout, getMarketRates } from '@/utils/blockchain'
 import ChatWindow from '@/components/ChatWindow'
+import ThemeToggle from '@/components/ThemeToggle'
 import { 
   ShieldCheck, ArrowLeft, ShoppingBag, Loader2, 
-  Plus, Minus, MessageSquare, X, MapPin, Star, Activity, 
-  Handshake, Info, Sparkles, Gavel
+  Plus, Minus, MessageSquare, X, MapPin, Star,
+  Globe, Info, Sparkles, Database, ArrowUpRight
 } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from "@/components/ui/button"
@@ -24,109 +25,41 @@ export default function ProductDetail() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [buyAmount, setBuyAmount] = useState(1)
   const [isChatOpen, setIsChatOpen] = useState(false)
-  const [isNegoModalOpen, setIsNegoModalOpen] = useState(false)
-  const [negoPrice, setNegoPrice] = useState("")
+  const [rates, setRates] = useState(null)
+  const [currency, setCurrency] = useState('USD')
 
   useEffect(() => {
-    const fetchDetail = async () => {
+    const fetchData = async () => {
       try { 
-        const { data: productData, error: pError } = await supabase
-          .from('products')
-          .select('*, profiles(*)') 
-          .eq('id', id)
-          .single()
-        if (pError) throw pError
-        setProduct(productData)
-        setNegoPrice(productData.price_per_kg)
+        const [prodRes, rateRes] = await Promise.all([
+          supabase.from('products').select('*, profiles(*)').eq('id', id).single(),
+          getMarketRates()
+        ])
+        if (prodRes.error) throw prodRes.error
+        setProduct(prodRes.data)
+        setRates(rateRes)
       } catch (err) {
-        toast.error("Failed to load node data")
+        toast.error("Node connection failed")
       } finally {
         setLoading(false)
       }
     }
-    if (id) fetchDetail()
+    if (id) fetchData()
   }, [id, supabase])
 
-  const handleProcessPurchase = async (isWithNego = false) => {
-    if (!product || !product.profiles?.wallet_address) return toast.error("Invalid seller node data")
+  const handleProcessPurchase = async () => {
+    if (!product?.profiles?.wallet_address) return toast.error("Invalid seller node")
     if (buyAmount > product.stock_kg) return toast.error("Insufficient supply")
-    if (!user) return toast.error("Login required")
-    
-    if (isWithNego) {
-        toast.info("TBC wkwkwk", {
-            icon: <Activity className="text-harvest" size={16} />
-        });
-        setIsNegoModalOpen(false);
-        return;
-    }
-
-    /* 
-    if (isWithNego && (!negoPrice || Number(negoPrice) >= product.price_per_kg)) {
-       return toast.error("Bid must be lower than protocol price")
-    }
-
-    setIsProcessing(true)
-    const toastId = toast.loading(isWithNego ? "Initializing Bid & Escrow..." : "Securing Acquisition...")
-
-    try { 
-      const currentEthPriceInUsd = await getEthPrice()
-      const totalPriceInUsd = Number(product.price_per_kg * buyAmount)
-      const totalEthToPayStr = (totalPriceInUsd / currentEthPriceInUsd).toFixed(18)
-
-      const items = [{
-        sellerAddress: product.profiles.wallet_address,
-        priceInEth: totalEthToPayStr,
-        sku: product.id            
-      }]
-
-      const { hash, blockchainIds, negoSuccess } = await checkout(items, isWithNego, negoPrice)
-      const bId = blockchainIds[0].txId
-
-      let finalStatus = 'AWAITING_DELIVERY'
-      if (isWithNego && negoSuccess) finalStatus = 'NEGOTIATING'
-
-      const { error } = await supabase.rpc('handle_buy_product', {
-        p_transaction_id: crypto.randomUUID(), 
-        p_product_id: product.id,
-        p_amount_kg: buyAmount,
-        p_blockchain_id: parseInt(bId), 
-        p_tx_hash: hash,
-        p_buyer_id: user.id,
-        p_seller_id: product.seller_id,
-        p_total_price: totalPriceInUsd,      
-        p_amount_paid: Number(totalEthToPayStr),
-        p_status: finalStatus
-      })
-
-      if (error) throw error
-
-      if (isWithNego && !negoSuccess) {
-          toast.warning("Payment secured, but bid failed. Status set to standard.", { id: toastId })
-      } else {
-          toast.success(isWithNego ? "Bid Submitted & Escrow Locked!" : "Acquisition Secured!", { id: toastId })
-      }
-      
-      router.push('/dashboard/transaksi')
-    } catch (err) {
-      console.error("Acquisition Error:", err)
-      toast.error(err.shortMessage || err.message || "Protocol failed", { id: toastId })
-    } finally {
-      setIsProcessing(false)
-      setIsNegoModalOpen(false)
-    }
-    */
+    if (!user) return toast.error("Please login first")
 
     setIsProcessing(true);
-    const toastId = toast.loading("Securing Direct Acquisition...");
+    const toastId = toast.loading("Executing smart contract...");
     
     try {
-        const currentEthPriceInUsd = await getEthPrice();
-        const totalPriceInUsd = Number(product.price_per_kg * buyAmount);
-        const totalEthToPayStr = (totalPriceInUsd / currentEthPriceInUsd).toFixed(18);
-
+        const totalEthToPay = (product.price_per_kg * buyAmount).toString();
         const items = [{
             sellerAddress: product.profiles.wallet_address,
-            priceInEth: totalEthToPayStr,
+            priceInEth: totalEthToPay,
             sku: product.id            
         }];
 
@@ -141,181 +74,193 @@ export default function ProductDetail() {
             p_tx_hash: hash,
             p_buyer_id: user.id,
             p_seller_id: product.seller_id,
-            p_total_price: totalPriceInUsd,      
-            p_amount_paid: Number(totalEthToPayStr),
+            p_total_price: Number(totalEthToPay),
+            p_amount_paid: Number(totalEthToPay),
             p_status: 'AWAITING_DELIVERY'
         });
 
         if (error) throw error;
-        toast.success("Node Acquisition Secured!", { id: toastId });
+        toast.success("Transaction verified!", { id: toastId });
         router.push('/dashboard/transaksi');
     } catch (err) {
-        toast.error("Direct Buy Failed: " + (err.shortMessage || err.message), { id: toastId });
+        toast.error("Execution failed: " + (err.shortMessage || err.message), { id: toastId });
     } finally {
         setIsProcessing(false);
     }
   }
 
-  if (loading) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-white"><Loader2 className="animate-spin text-forest" size={32} /></div>
+  if (loading || !product) return (
+    <div className="h-[100dvh] flex items-center justify-center bg-background">
+      <Loader2 className="animate-spin text-harvest" size={40} />
+    </div>
   )
 
+  const currentPrice = product.price_per_kg * buyAmount;
+  const displayValue = rates
+    ? currency === 'USD' 
+      ? (currentPrice * rates.ethToUsd).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+      : (currentPrice * rates.ethToIdr).toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })
+    : "Calculating..."; 
+
   return (
-    <div className="min-h-screen bg-[#FAFAFA] font-raleway pb-10 text-left">
-      <nav className="bg-white/80 backdrop-blur-xl sticky top-0 z-40 border-b border-clay/20">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <button onClick={() => router.back()} className="flex items-center gap-2 text-stone hover:text-forest transition-colors group">
+    <div className="min-h-screen bg-background text-foreground transition-colors duration-500 pb-10">
+      <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50 h-16 md:h-20 flex items-center">
+        <div className="max-w-6xl mx-auto w-full px-4 md:px-6 flex items-center justify-between">
+          <button onClick={() => router.back()} className="flex items-center gap-2 group text-stone hover:text-harvest transition-all">
             <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-            <span className="font-bold text-xs uppercase tracking-wider">Back</span>
+            <span className="font-semibold text-xs md:text-sm">Back</span>
           </button>
-          <div className="flex items-center gap-2 bg-chalk px-3 py-1 rounded-full border border-clay/30">
-            <Activity size={12} className="text-forest animate-pulse" />
-            <span className="text-[10px] font-bold text-forest uppercase tracking-widest leading-none">Node Active</span>
+          <div className="flex items-center gap-2 md:gap-4">
+            <ThemeToggle />
+            <Badge variant="outline" className="flex border-harvest/30 text-harvest bg-harvest/5 rounded-full px-2 md:px-3 py-1 gap-1.5">
+              <div className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-harvest animate-pulse" />
+              <span className="text-[8px] md:text-[10px] font-bold tracking-widest">Nodes</span>
+            </Badge>
           </div>
         </div>
       </nav>
 
-      <main className="max-w-6xl mx-auto px-4 md:px-8 mt-6 md:mt-12">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-16 items-start">
-          
-          <div className="space-y-6">
-            <div className="relative aspect-square bg-white rounded-[2rem] md:rounded-[2.5rem] overflow-hidden border border-clay/10 shadow-sm group">
+      <main className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-16">
+          <div className="space-y-6 md:space-y-8">
+            <div className="relative aspect-square rounded-[2rem] md:rounded-[3rem] overflow-hidden bg-card border border-border shadow-2xl group">
               {product.image_url ? (
-                <img src={product.image_url} alt={product.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                <img src={product.image_url} alt={product.name} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-forest/5"><ShieldCheck size={100} strokeWidth={1} /></div>
+                <div className="w-full h-full flex items-center justify-center bg-muted">
+                  <ShieldCheck size={80} className="text-forest/10 dark:text-harvest/10" />
+                </div>
               )}
-              <Badge className="absolute top-4 left-4 md:top-6 md:left-6 bg-white/90 backdrop-blur-sm text-forest font-bold px-4 py-1.5 rounded-xl border-none shadow-sm text-[10px] uppercase">
-                {product.category || 'Premium Asset'}
-              </Badge>
+              <div className="absolute top-4 left-4 md:top-8 md:left-8">
+                <Badge className="bg-background/80 backdrop-blur-md text-forest dark:text-harvest border border-border px-3 py-1.5 md:px-4 md:py-2 rounded-xl md:rounded-2xl font-bold shadow-xl text-[10px] md:text-xs">
+                  {product.category || 'Premium asset'}
+                </Badge>
+              </div>
             </div>
-            <div className="bg-white p-5 rounded-[1.5rem] md:rounded-[2rem] border border-clay/20 flex items-start gap-4 shadow-sm">
-              <div className="p-3 bg-forest/5 rounded-2xl text-forest shrink-0"><ShieldCheck size={20} /></div>
-              <div className="space-y-1">
-                <p className="text-forest font-bold text-[11px] uppercase tracking-wider">Harsa Escrow Protection</p>
-                <p className="text-stone/60 text-xs leading-relaxed">Funds are secured in L2 Smart Contract and only released upon delivery verification.</p>
+
+            <div className="p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] bg-card border border-border flex items-start gap-4 md:gap-6 shadow-lg">
+              <div className="p-3 md:p-4 bg-forest/5 dark:bg-harvest/10 rounded-xl md:rounded-2xl text-forest dark:text-harvest shrink-0">
+                <ShieldCheck size={20} className="md:w-7 md:h-7" />
+              </div>
+              <div className="space-y-1 md:space-y-2">
+                <h4 className="font-bold text-xs md:text-sm tracking-tight">Smart Escrow Protection</h4>
+                <p className="text-stone dark:text-stone/60 text-[10px] md:text-xs leading-relaxed">
+                  Secured via Harsa Smart Contract. Funds only released upon your confirmation.
+                </p>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col space-y-6 md:space-y-8">
-            <div className="space-y-3">
-              <h1 className="text-3xl md:text-5xl font-bold text-slate-900 tracking-tight uppercase leading-none">{product.name}</h1>
-              <div className="flex items-center gap-4 text-stone/40">
-                <div className="flex items-center gap-1.5 font-bold">
-                  <MapPin size={14} className="text-harvest" />
-                  <span className="text-xs uppercase">{product.profiles?.location?.split(',')[0]}</span>
-                </div>
-                <div className="h-3 w-[1px] bg-clay" />
-                <div className="flex items-center gap-1.5">
-                  <Star size={14} className="fill-harvest text-harvest" />
-                  <span className="text-xs font-bold text-forest">{product.profiles?.reputation_score}% Trust Node</span>
-                </div>
+          <div className="flex flex-col gap-8 md:gap-10">
+            <div className="space-y-4 md:space-y-6">
+              <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-tighter leading-tight italic">
+                {product.name}
+              </h1>
+              
+              <div className="flex flex-wrap gap-2 md:gap-3">
+                <Badge variant="secondary" className="rounded-lg md:rounded-xl px-2.5 py-1 md:px-3 md:py-1.5 gap-1.5 md:gap-2 border border-border bg-muted/50 text-stone text-[10px] md:text-xs">
+                  <MapPin size={12} className="text-harvest" /> {product.profiles?.location?.split(',')[0]}
+                </Badge>
+                <Badge variant="secondary" className="rounded-lg md:rounded-xl px-2.5 py-1 md:px-3 md:py-1.5 gap-1.5 md:gap-2 border border-border bg-muted/50 text-stone text-[10px] md:text-xs">
+                  <Star size={12} className="fill-harvest text-harvest border-none" /> {product.profiles?.reputation_score}% Trust
+                </Badge>
+                <Badge variant="secondary" className="rounded-lg md:rounded-xl px-2.5 py-1 md:px-3 md:py-1.5 gap-1.5 md:gap-2 border border-border bg-muted/50 text-stone text-[10px] md:text-xs">
+                  <Database size={12} className="text-forest dark:text-harvest" /> {product.stock_kg} kg stock
+                </Badge>
               </div>
             </div>
 
-            <div className="flex items-center justify-between p-4 bg-white rounded-2xl md:rounded-3xl border border-clay/10 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 md:w-11 md:h-11 bg-forest rounded-xl md:rounded-2xl flex items-center justify-center font-bold text-white shadow-lg shrink-0">
+            <div className="flex items-center justify-between p-4 md:p-6 rounded-[1.5rem] md:rounded-[2rem] bg-card border border-border shadow-sm">
+              <div className="flex items-center gap-3 md:gap-4">
+                <div className="w-10 h-10 md:w-14 md:h-14 bg-forest dark:bg-harvest rounded-xl md:rounded-2xl flex items-center justify-center font-bold text-white text-base md:text-xl shadow-lg">
                   {product.profiles?.full_name?.charAt(0)}
                 </div>
-                <div className="flex flex-col min-w-0">
-                  <p className="text-[9px] font-bold text-stone/30 uppercase tracking-widest mb-0.5 leading-none">Source Node</p>
-                  <Link href={`/petani/${product.seller_id}`} className="hover:text-harvest transition-colors font-bold text-forest text-sm truncate">{product.profiles?.full_name}</Link>
+                <div>
+                  <p className="text-[8px] md:text-[10px] font-bold text-stone/40 tracking-widest mb-0.5 md:mb-1">Producer</p>
+                  <Link href={`/petani/${product.seller_id}`} className="font-bold text-sm md:text-lg hover:text-harvest transition-colors underline decoration-harvest/30 underline-offset-4 truncate max-w-[120px] md:max-w-none block">
+                    {product.profiles?.full_name}
+                  </Link>
                 </div>
               </div>
-              <Button variant="outline" size="sm" onClick={() => setIsChatOpen(true)} className="rounded-xl border-clay/50 gap-2 font-bold text-[9px] md:text-[10px] h-8 md:h-9 hover:bg-chalk uppercase tracking-widest shrink-0">
-                <MessageSquare size={14} className="text-harvest" /> Message
+              <Button variant="outline" size="icon" onClick={() => setIsChatOpen(true)} className="rounded-xl md:rounded-2xl w-10 h-10 md:w-12 md:h-12 border-border hover:bg-muted shrink-0">
+                <MessageSquare size={18} className="text-harvest md:w-5 md:h-5" />
               </Button>
             </div>
 
-            <div className="bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border border-clay/20 space-y-6 md:space-y-8 shadow-sm">
-              <div className="flex justify-between items-end">
-                <p className="text-[10px] font-bold text-stone/30 uppercase tracking-wider leading-none">Price per KG</p>
-                <p className="text-2xl md:text-3xl font-bold text-forest tracking-tighter leading-none">${product.price_per_kg?.toLocaleString()}</p>
-              </div>
-
-              <div className="flex items-center justify-between bg-slate-50 p-2 rounded-2xl border border-clay/10">
-                <button 
-                  onClick={() => setBuyAmount(Math.max(1, buyAmount - 1))} 
-                  className="w-10 h-10 md:w-12 md:h-12 bg-white text-forest rounded-xl shadow-sm hover:bg-forest hover:text-white transition-all active:scale-95 flex items-center justify-center"
-                >
-                  <Minus size={18}/>
-                </button>
-                <div className="flex-1 text-center">
-                   <span className="font-bold text-xl md:text-2xl text-forest tabular-nums">{buyAmount} KG</span>
+            <div className="p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] bg-card border-2 border-border shadow-2xl space-y-6 md:space-y-10 relative">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-[9px] md:text-[11px] font-bold text-stone/40 tracking-widest mb-1 md:mb-2">Protocol Price</p>
+                  <p className="text-2xl md:text-4xl font-bold tracking-tighter">Ξ {product.price_per_kg} <span className="text-[10px] md:text-sm font-semibold opacity-30 italic">/ kg</span></p>
                 </div>
                 <button 
-                  onClick={() => setBuyAmount(Math.min(product.stock_kg, buyAmount + 1))} 
-                  className="w-10 h-10 md:w-12 md:h-12 bg-white text-forest rounded-xl shadow-sm hover:bg-forest hover:text-white transition-all active:scale-95 flex items-center justify-center"
+                  onClick={() => setCurrency(currency === 'USD' ? 'IDR' : 'USD')}
+                  className="flex items-center gap-1 text-[8px] md:text-[10px] font-bold text-harvest hover:text-forest transition-colors bg-harvest/5 px-2 md:px-3 py-1 md:py-1.5 rounded-full border border-harvest/20"
                 >
-                  <Plus size={18}/>
+                  <Globe size={10} className="md:w-3 md:h-3" /> {currency === 'USD' ? 'IDR' : 'USD'}
                 </button>
               </div>
 
-              <div className="pt-6 flex justify-between items-end border-t border-slate-100">
-                <span className="text-stone/40 font-bold text-[10px] uppercase tracking-wider leading-none">Total Value</span>
-                <span className="text-3xl md:text-4xl font-bold text-forest tracking-tighter leading-none">${(product.price_per_kg * buyAmount).toLocaleString()}</span>
+              <div className="bg-muted/50 rounded-2xl md:rounded-3xl p-3 md:p-4 flex items-center justify-between border border-border/50">
+                <button 
+                  onClick={() => setBuyAmount(Math.max(1, buyAmount - 1))}
+                  className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-background border border-border flex items-center justify-center hover:bg-harvest hover:text-white transition-all active:scale-90"
+                >
+                  <Minus size={18} className="md:w-6 md:h-6" />
+                </button>
+                <div className="text-center">
+                  <p className="text-xl md:text-3xl font-bold tabular-nums italic">{buyAmount} kg</p>
+                  <p className="text-[8px] md:text-[10px] font-bold text-stone/40">Amount</p>
+                </div>
+                <button 
+                  onClick={() => setBuyAmount(Math.min(product.stock_kg, buyAmount + 1))}
+                  className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-background border border-border flex items-center justify-center hover:bg-harvest hover:text-white transition-all active:scale-90"
+                >
+                  <Plus size={18} className="md:w-6 md:h-6" />
+                </button>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setIsNegoModalOpen(true)} 
-                  disabled={isProcessing || product.stock_kg === 0} 
-                  className="h-14 md:h-16 rounded-[1.5rem] md:rounded-3xl border-harvest text-harvest font-bold text-[10px] uppercase tracking-widest hover:bg-harvest/5 active:scale-95 transition-all"
-                >
-                    <Handshake className="mr-2" size={18} /> Bid & Secure
-                </Button>
-                <Button 
-                  onClick={() => handleProcessPurchase(false)} 
-                  disabled={isProcessing || product.stock_kg === 0} 
-                  className="h-14 md:h-16 rounded-[1.5rem] md:rounded-3xl bg-forest hover:bg-forest/90 text-white font-bold text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-forest/10 active:scale-95 transition-all"
-                >
-                  {isProcessing ? <Loader2 className="animate-spin" size={20} /> : <><ShoppingBag className="mr-2" size={18} /> Direct Buy</>}
-                </Button>
+              <div className="pt-6 md:pt-8 border-t border-border flex justify-between items-center">
+                <div className="space-y-0.5 md:space-y-1">
+                  <p className="text-[8px] md:text-[10px] font-bold text-stone/40 tracking-widest leading-none">Total Value</p>
+                  <p className="text-[10px] md:text-xs font-bold text-harvest italic">{displayValue}</p>
+                </div>
+                <p className="text-3xl md:text-5xl font-bold tracking-tighter text-forest dark:text-harvest italic">
+                  Ξ {(product.price_per_kg * buyAmount).toFixed(4)}
+                </p>
+              </div>
+
+              <Button 
+                onClick={handleProcessPurchase} 
+                disabled={isProcessing || product.stock_kg === 0} 
+                className="w-full h-16 md:h-20 rounded-2xl md:rounded-[2rem] bg-forest dark:bg-harvest text-white font-bold text-xs md:text-sm tracking-[0.15em] md:tracking-[0.2em] shadow-2xl hover:scale-[1.02] active:scale-95 transition-all"
+              >
+                {isProcessing ? <Loader2 className="animate-spin" /> : <span className="flex items-center gap-2 md:gap-3"><ShoppingBag size={18} className="md:w-5 md:h-5"/> Execute Purchase</span>}
+              </Button>
             </div>
-            <p className="text-center text-[10px] text-stone/30 font-semibold uppercase tracking-widest">Stock Available: {product.stock_kg} KG in Node</p>
           </div>
         </div>
       </main>
 
-      {isNegoModalOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-white/60 backdrop-blur-md animate-in fade-in">
-          <div className="bg-white w-full max-w-sm rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 border border-clay/30 shadow-2xl relative overflow-hidden text-left">
-             <div className="absolute -top-10 -right-10 text-forest/5"><Gavel size={150} /></div>
-             <div className="relative z-10 space-y-6">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2 text-harvest">
-                    <Sparkles size={16} />
-                    <span className="text-[10px] font-bold uppercase tracking-widest leading-none">Submit Bid</span>
-                  </div>
-                  <button onClick={() => setIsNegoModalOpen(false)} className="text-stone/40 hover:text-red-500 transition-colors"><X size={20}/></button>
-                </div>
-                <div className="space-y-4">
-                   <div className="p-4 bg-slate-50 rounded-2xl border border-clay/10">
-                      <p className="text-[9px] font-bold text-stone/40 uppercase mb-1 leading-none">Standard Price</p>
-                      <p className="font-bold text-forest tracking-tight">${product.price_per_kg} / KG</p>
-                   </div>
-                   <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-stone/40 uppercase tracking-widest ml-1 leading-none">Proposed Bid ($)</label>
-                      <input type="number" value={negoPrice} onChange={(e) => setNegoPrice(e.target.value)} className="w-full h-14 px-6 rounded-2xl bg-white border border-clay outline-none font-bold text-forest focus:ring-4 focus:ring-forest/5 transition-all" placeholder="0.00" />
-                   </div>
-                </div>
-                <Button onClick={() => handleProcessPurchase(true)} className="w-full h-14 bg-harvest text-white rounded-2xl font-bold text-[10px] uppercase tracking-widest shadow-xl shadow-harvest/20 active:scale-95 transition-all">
-                   Execute Bid & Pay
-                </Button>
-             </div>
-          </div>
-        </div>
-      )}
-
       {isChatOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-forest/20 backdrop-blur-sm animate-in fade-in">
-          <div className="relative w-full max-w-lg animate-in zoom-in duration-300 h-[80vh] md:h-[600px]">
-            <button onClick={() => setIsChatOpen(false)} className="absolute -top-10 right-0 md:-top-12 md:right-0 w-10 h-10 bg-white border border-clay/20 rounded-full text-stone flex items-center justify-center shadow-xl active:scale-90 transition-all z-[120]"><X size={20} /></button>
-            <div className="rounded-[2rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl bg-white border border-clay/10 h-full">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 md:p-6 bg-background/40 backdrop-blur-xl animate-in fade-in duration-300">
+          <div className="relative w-full md:max-w-2xl h-full md:h-[70vh] shadow-2xl rounded-none md:rounded-[3rem] overflow-hidden border-none md:border border-border bg-card flex flex-col">
+            <div className="flex md:hidden p-4 border-b border-border items-center justify-between bg-card">
+               <span className="font-bold text-sm italic">Chat with {product.profiles?.full_name?.split(' ')[0]}</span>
+               <button 
+                  onClick={() => setIsChatOpen(false)} 
+                  className="w-10 h-10 bg-muted rounded-xl flex items-center justify-center text-stone"
+                >
+                  <X size={20} />
+                </button>
+            </div>
+            <button 
+              onClick={() => setIsChatOpen(false)} 
+              className="hidden md:flex absolute top-6 right-6 z-[110] w-12 h-12 bg-background border border-border rounded-2xl items-center justify-center text-stone hover:text-red-500 transition-all active:scale-90"
+            >
+              <X size={24} />
+            </button>
+            <div className="flex-1 overflow-hidden">
                <ChatWindow receiverId={product.seller_id} receiverName={product.profiles?.full_name} transactionId={id} />
             </div>
           </div>
