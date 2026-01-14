@@ -3,8 +3,6 @@ import { createClient } from '@supabase/supabase-js'
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 
-// Initializing outside the component ensures a SINGLE instance (Singleton)
-// This fixes the "Multiple GoTrueClient instances" warning.
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
@@ -51,6 +49,20 @@ export const AuthProvider = ({ children }) => {
     return () => subscription.unsubscribe()
   }, [fetchProfile])
 
+  const register = async (email, password, fullName) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+        },
+      },
+    })
+    if (error) throw error
+    return data
+  }
+
   const login = async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
@@ -73,7 +85,16 @@ export const AuthProvider = ({ children }) => {
   }
 
   return (
-    <SupabaseContext.Provider value={{ user, profile, login, logout, supabase, isInitialLoad, updateWalletAddress }}>
+    <SupabaseContext.Provider value={{ 
+      user, 
+      profile, 
+      login, 
+      logout, 
+      register, 
+      supabase, 
+      isInitialLoad, 
+      updateWalletAddress 
+    }}>
       {children}
     </SupabaseContext.Provider>
   )
