@@ -1,8 +1,7 @@
 # 🌿 Harsa Protocol: Agri-DeFi Infrastructure
 ### *Revolutionizing Global Agricultural Supply Chains on Arbitrum L2*
 
-**Live Demo:** [harsaarbi.vercel.app](https://harsaarbi.vercel.app)  
-**Developer:** Sarah Fajriah Rahmah ([sarahfajriarahmah@gmail.com](mailto:sarahfajriarahmah@gmail.com))
+**Live Demo:** [harsaarbi.vercel.app](https://harsaarbi.vercel.app)  )
 
 ---
 
