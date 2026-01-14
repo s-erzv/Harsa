@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# 🌿 Harsa Protocol: Agri-DeFi Infrastructure
+### *Revolutionizing Global Agricultural Supply Chains on Arbitrum L2*
 
-## Getting Started
+**Live Demo:** [harsaarbi.vercel.app](https://harsaarbi.vercel.app)  
+**Developer:** Sarah Fajriah Rahmah ([sarahfajriarahmah@gmail.com](mailto:sarahfajriarahmah@gmail.com))
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Abstract
+Harsa is a hybrid Agri-DeFi (Agricultural Decentralized Finance) infrastructure designed to overhaul trust systems within global agricultural supply chains. By positioning the **Arbitrum blockchain** as a single source of truth, Harsa integrates a commodity marketplace, automated escrow protocols, and QR-based traceability to eliminate intermediary exploitation and price asymmetry.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Arbitrum Integration
+Harsa is built on **Arbitrum Sepolia** to provide a high-performance, low-cost experience that is realistic for rural adoption.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+* **Gasless Experience:** vital functions like `confirmDelivery` are executed via a server-side client (**Viem**), subsidizing gas fees to remove the complexity of token management for farmers.
+* **On-Chain Settlement:** Utilizes the `HarsaEscrow` smart contract to lock funds. Payments are only released once delivery is cryptographically verified.
+* **Data Anchoring:** While granular logs are stored efficiently in Supabase, every critical status change (Dispatched, Transit, Received) is anchored to the blockchain via a `tx_hash` for an immutable audit trail.
+* **Stylus & Orbit Roadmap:** Future plans include migrating reputation algorithms to **Arbitrum Stylus (Rust)** for 10x computational efficiency and deploying a dedicated agricultural rollup via **Arbitrum Orbit**.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Key Features
+* **Hybrid Infrastructure:** Functions as both a marketplace and an independent Escrow-as-a-Service protocol.
+* **Non-Atomic Multi-Seller Checkout:** Ensuring financial fairness; delays from one farmer do not stall payments to others in a bundled order.
+* **QR-Proof of Delivery:** Seamlessly bridge physical hand-offs with digital settlement using QR-based verification.
+* **Global Market Intelligence:** Real-time commodity price indices (via API Ninjas) integrated into the dashboard to help farmers set fair prices.
+* **Obsidian Intelligence Dashboard:** Clean, poetic UI for analytics, sales monitoring, and encrypted P2P communication.
 
-## Learn More
+## Tech Stack
+* **L2 Network:** Arbitrum Sepolia
+* **Smart Contracts:** Solidity (HarsaEscrow)
+* **Frontend:** Next.js 15 (Turbopack), Tailwind CSS 4
+* **Backend/Database:** Supabase (PostgreSQL + Realtime)
+* **Blockchain Library:** Viem & Ethers.js
+* **Security:** AES-256 End-to-End Encryption for P2P Chat
+* **Visuals:** Lucide React, Recharts, Framer Motion
 
-To learn more about Next.js, take a look at the following resources:
+## Future Roadmap
+1.  **Arbitrum Stylus Integration:** Migrating heavy business analytics to Rust-based smart contracts.
+2.  **IoT Hardware Verification:** Replacing manual farm logs with real-time sensor data (Soil moisture, GPS trackers) anchored directly to the chain.
+3.  **Arbitrum Orbit Deployment:** Building a dedicated Agri-Rollup for high-frequency IoT data and global scaling.
+4.  **DAO Governance:** Transitioning to a community-led model on Arbitrum One.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+*Built with intention and a touch of poetic logic for the Arbitrum Mini Hackathon 2026.* 🌿✨
