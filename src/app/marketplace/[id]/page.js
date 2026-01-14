@@ -5,10 +5,11 @@ import { useAuth } from '@/context/AuthContext'
 import { checkout, getMarketRates } from '@/utils/blockchain'
 import ChatWindow from '@/components/ChatWindow'
 import ThemeToggle from '@/components/ThemeToggle'
+import BlockchainActivity from '@/components/BlockchainActivity'
 import { 
   ShieldCheck, ArrowLeft, ShoppingBag, Loader2, 
   Plus, Minus, MessageSquare, X, MapPin, Star,
-  Globe, Info, Sparkles, Database, ArrowUpRight
+  Globe, Database, ArrowUpRight
 } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from "@/components/ui/button"
@@ -27,6 +28,7 @@ export default function ProductDetail() {
   const [isChatOpen, setIsChatOpen] = useState(false)
   const [rates, setRates] = useState(null)
   const [currency, setCurrency] = useState('USD')
+  const [activities, setActivities] = useState([])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -38,6 +40,14 @@ export default function ProductDetail() {
         if (prodRes.error) throw prodRes.error
         setProduct(prodRes.data)
         setRates(rateRes)
+
+        const { data: actData } = await supabase
+          .from('transactions')
+          .select(`*, buyer:buyer_id(wallet_address), seller:seller_id(wallet_address)`)
+          .eq('product_id', id)
+          .order('created_at', { ascending: false })
+        
+        if (actData) setActivities(actData)
       } catch (err) {
         toast.error("Node connection failed")
       } finally {
@@ -57,20 +67,17 @@ export default function ProductDetail() {
     
     try {
         const totalEthToPay = (product.price_per_kg * buyAmount).toString();
-        const items = [{
+        const { hash, blockchainIds } = await checkout([{
             sellerAddress: product.profiles.wallet_address,
             priceInEth: totalEthToPay,
             sku: product.id            
-        }];
-
-        const { hash, blockchainIds } = await checkout(items, false, null);
-        const bId = blockchainIds[0].txId;
+        }], false, null);
 
         const { error } = await supabase.rpc('handle_buy_product', {
             p_transaction_id: crypto.randomUUID(), 
             p_product_id: product.id,
             p_amount_kg: buyAmount,
-            p_blockchain_id: parseInt(bId), 
+            p_blockchain_id: parseInt(blockchainIds[0].txId), 
             p_tx_hash: hash,
             p_buyer_id: user.id,
             p_seller_id: product.seller_id,
@@ -103,7 +110,7 @@ export default function ProductDetail() {
     : "Calculating..."; 
 
   return (
-    <div className="min-h-screen bg-background text-foreground transition-colors duration-500 pb-10">
+    <div className="min-h-screen bg-background text-foreground font-raleway pb-20 transition-colors duration-500">
       <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50 h-16 md:h-20 flex items-center">
         <div className="max-w-6xl mx-auto w-full px-4 md:px-6 flex items-center justify-between">
           <button onClick={() => router.back()} className="flex items-center gap-2 group text-stone hover:text-harvest transition-all">
@@ -121,7 +128,8 @@ export default function ProductDetail() {
       </nav>
 
       <main className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-16">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-16 items-start">
+          
           <div className="space-y-6 md:space-y-8">
             <div className="relative aspect-square rounded-[2rem] md:rounded-[3rem] overflow-hidden bg-card border border-border shadow-2xl group">
               {product.image_url ? (
@@ -138,13 +146,13 @@ export default function ProductDetail() {
               </div>
             </div>
 
-            <div className="p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] bg-card border border-border flex items-start gap-4 md:gap-6 shadow-lg">
+            <div className="p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] bg-card border border-border flex items-start gap-4 md:gap-6 shadow-lg text-left">
               <div className="p-3 md:p-4 bg-forest/5 dark:bg-harvest/10 rounded-xl md:rounded-2xl text-forest dark:text-harvest shrink-0">
                 <ShieldCheck size={20} className="md:w-7 md:h-7" />
               </div>
               <div className="space-y-1 md:space-y-2">
                 <h4 className="font-bold text-xs md:text-sm tracking-tight">Smart Escrow Protection</h4>
-                <p className="text-stone dark:text-stone/60 text-[10px] md:text-xs leading-relaxed">
+                <p className="text-stone dark:text-stone/60 text-[10px] md:text-xs leading-relaxed italic">
                   Secured via Harsa Smart Contract. Funds only released upon your confirmation.
                 </p>
               </div>
@@ -152,11 +160,8 @@ export default function ProductDetail() {
           </div>
 
           <div className="flex flex-col gap-8 md:gap-10">
-            <div className="space-y-4 md:space-y-6">
-              <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-tighter leading-tight italic">
-                {product.name}
-              </h1>
-              
+            <div className="space-y-4 md:space-y-6 text-left">
+              <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-tighter leading-tight italic">{product.name}</h1>
               <div className="flex flex-wrap gap-2 md:gap-3">
                 <Badge variant="secondary" className="rounded-lg md:rounded-xl px-2.5 py-1 md:px-3 md:py-1.5 gap-1.5 md:gap-2 border border-border bg-muted/50 text-stone text-[10px] md:text-xs">
                   <MapPin size={12} className="text-harvest" /> {product.profiles?.location?.split(',')[0]}
@@ -172,10 +177,10 @@ export default function ProductDetail() {
 
             <div className="flex items-center justify-between p-4 md:p-6 rounded-[1.5rem] md:rounded-[2rem] bg-card border border-border shadow-sm">
               <div className="flex items-center gap-3 md:gap-4">
-                <div className="w-10 h-10 md:w-14 md:h-14 bg-forest dark:bg-harvest rounded-xl md:rounded-2xl flex items-center justify-center font-bold text-white text-base md:text-xl shadow-lg">
+                <div className="w-10 h-10 md:w-14 md:h-14 bg-forest dark:bg-harvest rounded-xl md:rounded-2xl flex items-center justify-center font-bold text-white text-base md:text-xl shadow-lg shrink-0">
                   {product.profiles?.full_name?.charAt(0)}
                 </div>
-                <div>
+                <div className="text-left">
                   <p className="text-[8px] md:text-[10px] font-bold text-stone/40 tracking-widest mb-0.5 md:mb-1">Producer</p>
                   <Link href={`/petani/${product.seller_id}`} className="font-bold text-sm md:text-lg hover:text-harvest transition-colors underline decoration-harvest/30 underline-offset-4 truncate max-w-[120px] md:max-w-none block">
                     {product.profiles?.full_name}
@@ -189,77 +194,52 @@ export default function ProductDetail() {
 
             <div className="p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] bg-card border-2 border-border shadow-2xl space-y-6 md:space-y-10 relative">
               <div className="flex justify-between items-start">
-                <div>
+                <div className="text-left">
                   <p className="text-[9px] md:text-[11px] font-bold text-stone/40 tracking-widest mb-1 md:mb-2">Protocol Price</p>
                   <p className="text-2xl md:text-4xl font-bold tracking-tighter">Ξ {product.price_per_kg} <span className="text-[10px] md:text-sm font-semibold opacity-30 italic">/ kg</span></p>
                 </div>
-                <button 
-                  onClick={() => setCurrency(currency === 'USD' ? 'IDR' : 'USD')}
-                  className="flex items-center gap-1 text-[8px] md:text-[10px] font-bold text-harvest hover:text-forest transition-colors bg-harvest/5 px-2 md:px-3 py-1 md:py-1.5 rounded-full border border-harvest/20"
-                >
+                <button onClick={() => setCurrency(currency === 'USD' ? 'IDR' : 'USD')} className="flex items-center gap-1 text-[8px] md:text-[10px] font-bold text-harvest hover:text-forest transition-colors bg-harvest/5 px-2 md:px-3 py-1 md:py-1.5 rounded-full border border-harvest/20">
                   <Globe size={10} className="md:w-3 md:h-3" /> {currency === 'USD' ? 'IDR' : 'USD'}
                 </button>
               </div>
 
               <div className="bg-muted/50 rounded-2xl md:rounded-3xl p-3 md:p-4 flex items-center justify-between border border-border/50">
-                <button 
-                  onClick={() => setBuyAmount(Math.max(1, buyAmount - 1))}
-                  className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-background border border-border flex items-center justify-center hover:bg-harvest hover:text-white transition-all active:scale-90"
-                >
-                  <Minus size={18} className="md:w-6 md:h-6" />
-                </button>
+                <button onClick={() => setBuyAmount(Math.max(1, buyAmount - 1))} className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-background border border-border flex items-center justify-center hover:bg-harvest hover:text-white transition-all active:scale-90"><Minus size={18} /></button>
                 <div className="text-center">
                   <p className="text-xl md:text-3xl font-bold tabular-nums italic">{buyAmount} kg</p>
                   <p className="text-[8px] md:text-[10px] font-bold text-stone/40">Amount</p>
                 </div>
-                <button 
-                  onClick={() => setBuyAmount(Math.min(product.stock_kg, buyAmount + 1))}
-                  className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-background border border-border flex items-center justify-center hover:bg-harvest hover:text-white transition-all active:scale-90"
-                >
-                  <Plus size={18} className="md:w-6 md:h-6" />
-                </button>
+                <button onClick={() => setBuyAmount(Math.min(product.stock_kg, buyAmount + 1))} className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-background border border-border flex items-center justify-center hover:bg-harvest hover:text-white transition-all active:scale-90"><Plus size={18} /></button>
               </div>
 
               <div className="pt-6 md:pt-8 border-t border-border flex justify-between items-center">
-                <div className="space-y-0.5 md:space-y-1">
+                <div className="space-y-0.5 md:space-y-1 text-left">
                   <p className="text-[8px] md:text-[10px] font-bold text-stone/40 tracking-widest leading-none">Total Value</p>
                   <p className="text-[10px] md:text-xs font-bold text-harvest italic">{displayValue}</p>
                 </div>
-                <p className="text-3xl md:text-5xl font-bold tracking-tighter text-forest dark:text-harvest italic">
-                  Ξ {(product.price_per_kg * buyAmount).toFixed(4)}
-                </p>
+                <p className="text-3xl md:text-5xl font-bold tracking-tighter text-forest dark:text-harvest italic">Ξ {(product.price_per_kg * buyAmount).toFixed(4)}</p>
               </div>
 
-              <Button 
-                onClick={handleProcessPurchase} 
-                disabled={isProcessing || product.stock_kg === 0} 
-                className="w-full h-16 md:h-20 rounded-2xl md:rounded-[2rem] bg-forest dark:bg-harvest text-white font-bold text-xs md:text-sm tracking-[0.15em] md:tracking-[0.2em] shadow-2xl hover:scale-[1.02] active:scale-95 transition-all"
-              >
-                {isProcessing ? <Loader2 className="animate-spin" /> : <span className="flex items-center gap-2 md:gap-3"><ShoppingBag size={18} className="md:w-5 md:h-5"/> Execute Purchase</span>}
+              <Button onClick={handleProcessPurchase} disabled={isProcessing || product.stock_kg === 0} className="w-full h-16 md:h-20 rounded-2xl md:rounded-[2rem] bg-forest dark:bg-harvest text-white font-bold text-xs md:text-sm tracking-[0.15em] md:tracking-[0.2em] shadow-2xl hover:scale-[1.02] active:scale-95 transition-all">
+                {isProcessing ? <Loader2 className="animate-spin" /> : <span className="flex items-center gap-2 md:gap-3"><ShoppingBag size={18}/> Execute Purchase</span>}
               </Button>
             </div>
           </div>
+        </div>
+
+        <div className="mt-16 md:mt-24">
+           <BlockchainActivity activities={activities} />
         </div>
       </main>
 
       {isChatOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 md:p-6 bg-background/40 backdrop-blur-xl animate-in fade-in duration-300">
           <div className="relative w-full md:max-w-2xl h-full md:h-[70vh] shadow-2xl rounded-none md:rounded-[3rem] overflow-hidden border-none md:border border-border bg-card flex flex-col">
-            <div className="flex md:hidden p-4 border-b border-border items-center justify-between bg-card">
+            <div className="flex md:hidden p-4 border-b border-border items-center justify-between bg-card shrink-0">
                <span className="font-bold text-sm italic">Chat with {product.profiles?.full_name?.split(' ')[0]}</span>
-               <button 
-                  onClick={() => setIsChatOpen(false)} 
-                  className="w-10 h-10 bg-muted rounded-xl flex items-center justify-center text-stone"
-                >
-                  <X size={20} />
-                </button>
+               <button onClick={() => setIsChatOpen(false)} className="w-10 h-10 bg-muted rounded-xl flex items-center justify-center text-stone"><X size={20} /></button>
             </div>
-            <button 
-              onClick={() => setIsChatOpen(false)} 
-              className="hidden md:flex absolute top-6 right-6 z-[110] w-12 h-12 bg-background border border-border rounded-2xl items-center justify-center text-stone hover:text-red-500 transition-all active:scale-90"
-            >
-              <X size={24} />
-            </button>
+            <button onClick={() => setIsChatOpen(false)} className="hidden md:flex absolute top-6 right-6 z-[110] w-12 h-12 bg-background border border-border rounded-2xl items-center justify-center text-stone hover:text-red-500 transition-all active:scale-90"><X size={24} /></button>
             <div className="flex-1 overflow-hidden">
                <ChatWindow receiverId={product.seller_id} receiverName={product.profiles?.full_name} transactionId={id} />
             </div>

@@ -1,11 +1,12 @@
 "use client"
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '@/context/AuthContext'
-import { Send, Loader2, MessageSquare, Shield, Lock, X, LogIn } from 'lucide-react'
+import { Send, Loader2, MessageSquare, Shield, Lock, X, Sparkles } from 'lucide-react'
 import CryptoJS from 'crypto-js'
 import Link from 'next/link'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
+import { toast } from 'sonner'
 
 const CHAT_SALT = process.env.NEXT_PUBLIC_CHAT_SALT || "harsa_secure_node_2026";
 
@@ -22,7 +23,6 @@ export default function ChatWindow({
   const [newMessage, setNewMessage] = useState('')
   const [loading, setLoading] = useState(true)
   const scrollRef = useRef()
-  const isFetching = useRef(false)
 
   const getSecurityKey = useCallback(() => {
     if (!user?.id || !receiverId) return CHAT_SALT;
@@ -35,9 +35,9 @@ export default function ChatWindow({
       const key = getSecurityKey();
       const bytes = CryptoJS.AES.decrypt(ciphertext, key);
       const originalText = bytes.toString(CryptoJS.enc.Utf8);
-      return originalText || "[Decryption Failed]";
+      return originalText || "[Secure Transmission]";
     } catch (e) {
-      return "[Encrypted Data]";
+      return "[Encrypted Signal]";
     }
   }, [getSecurityKey]);
 
@@ -46,10 +46,9 @@ export default function ChatWindow({
   }
 
   useEffect(() => {
-    if (!user?.id || !receiverId || isFetching.current) return;
+    if (!user?.id || !receiverId) return;
 
     const fetchMessages = async () => {
-      isFetching.current = true;
       setLoading(true);
       try {
         const { data, error } = await supabase
@@ -59,39 +58,25 @@ export default function ChatWindow({
           .order('created_at', { ascending: true });
         
         if (error) throw error;
-
-        const decryptedData = (data || []).map(msg => ({
-          ...msg,
-          content: decryptMessage(msg.content)
-        }));
-        setMessages(decryptedData);
+        setMessages((data || []).map(msg => ({ ...msg, content: decryptMessage(msg.content) })));
       } catch (err) {
-        console.error("Chat Sync Error:", err.message);
+        console.error("Sync Error:", err.message);
       } finally {
         setLoading(false);
-        isFetching.current = false;
       }
     };
 
     fetchMessages();
 
-    const channelId = `chat_${[user.id, receiverId].sort().join('_')}`.substring(0, 50);
-    const channel = supabase
-      .channel(channelId)
-      .on('postgres_changes', { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'messages',
-        filter: `receiver_id=eq.${user.id}` 
-      }, payload => {
-        if (payload.new.sender_id === receiverId) {
-          setMessages(prev => {
-            if (prev.find(m => m.id === payload.new.id)) return prev;
-            return [...prev, { ...payload.new, content: decryptMessage(payload.new.content) }];
-          });
+    const channel = supabase.channel(`room_${receiverId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+        const msg = payload.new;
+        const isRelevant = (msg.sender_id === user.id && msg.receiver_id === receiverId) || 
+                           (msg.sender_id === receiverId && msg.receiver_id === user.id);
+        if (isRelevant) {
+          setMessages(prev => prev.find(m => m.id === msg.id) ? prev : [...prev, { ...msg, content: decryptMessage(msg.content) }]);
         }
-      })
-      .subscribe();
+      }).subscribe();
 
     return () => { supabase.removeChannel(channel) };
   }, [user?.id, receiverId, decryptMessage, supabase]);
@@ -103,86 +88,66 @@ export default function ChatWindow({
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || !user) return;
-
     const rawText = newMessage;
-    const encryptedContent = encryptMessage(rawText);
-    
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const cleanTxId = uuidRegex.test(transactionId) ? transactionId : null;
-
-    const messageData = { 
-      sender_id: user.id, 
-      receiver_id: receiverId, 
-      content: encryptedContent, 
-      transaction_id: cleanTxId 
-    };
-
-    setNewMessage(''); 
-
-    const { data, error } = await supabase.from('messages').insert(messageData).select().single();
-    
-    if (!error && data) {
-      setMessages(prev => [...prev, { ...data, content: rawText }]);
-      await supabase.from('notifications').insert({
-        user_id: receiverId,
-        title: `New Message`,
-        message: "You have an encrypted transmission.",
-        type: 'MESSAGE'
+    setNewMessage('');
+    try {
+      const { error } = await supabase.from('messages').insert({ 
+        sender_id: user.id, receiver_id: receiverId, content: encryptMessage(rawText), transaction_id: transactionId 
       });
+      if (error) throw error;
+    } catch (err) {
+      toast.error("Signal failed");
+      setNewMessage(rawText);
     }
   };
 
-  const ChatContent = (
-    <div className="flex flex-col h-full w-full bg-white font-raleway overflow-hidden relative text-left">
+  const ChatUI = (
+    <div className="flex flex-col h-full w-full bg-background text-foreground font-raleway overflow-hidden relative">
       {!user && (
-        <div className="absolute inset-0 z-50 backdrop-blur-md bg-white/60 flex flex-col items-center justify-center p-8 text-center">
-          <div className="w-14 h-14 bg-chalk rounded-2xl flex items-center justify-center mb-4 border border-clay/30 shadow-sm">
-            <Lock className="text-forest" size={24} />
+        <div className="absolute inset-0 z-50 backdrop-blur-md bg-background/60 flex flex-col items-center justify-center p-8 text-center animate-in fade-in">
+          <div className="w-16 h-16 bg-muted rounded-[2rem] border border-border flex items-center justify-center mb-6 shadow-2xl">
+            <Lock className="text-harvest" size={32} />
           </div>
-          <p className="text-forest font-bold mb-1">Secure Messaging</p>
-          <p className="text-stone/50 text-[11px] mb-6 leading-relaxed">Sign in to initialize end-to-end encrypted communication.</p>
-          <Link href="/login" className="w-full max-w-[160px]">
-            <Button className="w-full bg-forest text-white rounded-xl h-11 font-bold text-[10px] tracking-widest shadow-xl shadow-forest/20">
-              SIGN IN
-            </Button>
-          </Link>
+          <h3 className="text-2xl font-bold tracking-tighter italic italic">Signal Locked<span className="text-harvest">.</span></h3>
+          <p className="text-stone/50 text-xs mb-8 leading-relaxed max-w-[200px]">Sign in to authorize end-to-end encrypted communication.</p>
+          <Link href="/login"><Button className="bg-forest dark:bg-harvest text-white rounded-2xl h-14 px-10 font-bold uppercase tracking-widest text-[10px]">INITIALIZE IDENTITY</Button></Link>
         </div>
       )}
 
       {!isMobileDrawer && (
-        <div className="p-4 bg-white border-b border-slate-50 flex justify-between items-center shrink-0">
-          <div className="flex items-center gap-3 text-left">
-            <div className="w-9 h-9 bg-forest rounded-xl flex items-center justify-center font-bold text-white shadow-lg ">
-              {receiverName?.charAt(0)}
-            </div>
+        <div className="p-5 bg-card border-b border-border flex justify-between items-center shrink-0">
+          <div className="flex items-center gap-4 text-left">
+            <div className="w-10 h-10 bg-forest dark:bg-harvest text-white rounded-xl flex items-center justify-center font-bold shadow-lg">{receiverName?.charAt(0)}</div>
             <div>
-              <p className="font-bold text-xs text-slate-800 leading-none mb-1">{receiverName}</p>
-              <div className="flex items-center gap-1">
-                 <Shield size={10} className="text-emerald-500" />
-                 <p className="text-[8px] text-emerald-500 font-bold ">E2EE Secured</p>
-              </div>
+              <p className="font-bold text-sm tracking-tight italic leading-none mb-1">{receiverName}</p>
+              <div className="flex items-center gap-1.5"><Shield size={10} className="text-emerald-500" /><p className="text-[8px] text-emerald-500 font-black uppercase tracking-widest leading-none">E2EE Secured</p></div>
             </div>
           </div>
-          <Lock size={14} className="text-slate-200" />
+          <div className="p-2 bg-muted rounded-xl border border-border"><Lock size={14} className="text-stone/40" /></div>
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-[#FAFAFA]">
+      <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-6 bg-background">
+        <div className="flex justify-center mb-4">
+           <div className="px-4 py-1.5 bg-muted rounded-full border border-border flex items-center gap-2">
+              <Sparkles size={10} className="text-harvest" /><span className="text-[8px] font-bold text-stone/40 uppercase tracking-widest leading-none">Encrypted session active</span>
+           </div>
+        </div>
+
         {loading && user ? (
-          <div className="flex justify-center py-10"><Loader2 className="animate-spin text-forest" size={20} /></div>
+          <div className="flex justify-center py-10"><Loader2 className="animate-spin text-harvest" size={24} /></div>
         ) : messages.length === 0 ? (
-          <div className="text-center py-10 opacity-20">
-             <MessageSquare size={32} className="mx-auto mb-2" />
-             <p className="text-[10px] font-bold tracking-widest">Start Node Chat</p>
+          <div className="text-center py-20 opacity-20 flex flex-col items-center">
+             <MessageSquare size={48} strokeWidth={1} /><p className="text-[10px] font-bold tracking-[0.4em] uppercase mt-4">No signal detected</p>
           </div>
         ) : (
           messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[85%] p-3.5 rounded-[1.2rem] shadow-sm text-xs font-semibold leading-relaxed ${
-                msg.sender_id === user?.id ? 'bg-forest text-white rounded-tr-none' : 'bg-white text-slate-600 border border-slate-100 rounded-tl-none'
+            <div key={msg.id} className={`flex ${msg.sender_id === user?.id ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+              <div className={`max-w-[85%] md:max-w-[80%] p-4 rounded-[1.8rem] shadow-sm text-sm font-medium leading-relaxed italic ${
+                msg.sender_id === user?.id ? 'bg-forest dark:bg-harvest text-white rounded-tr-none' : 'bg-card text-foreground border border-border rounded-tl-none'
               }`}>
                 {msg.content}
-                <p className={`text-[7px] mt-1.5 font-medium opacity-40 ${msg.sender_id === user?.id ? 'text-right' : 'text-left'}`}>
+                <p className={`text-[8px] mt-2 font-black uppercase tracking-widest opacity-40 ${msg.sender_id === user?.id ? 'text-right' : 'text-left'}`}>
                   {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
@@ -191,17 +156,16 @@ export default function ChatWindow({
         )}
         <div ref={scrollRef} />
       </div>
-      <form onSubmit={sendMessage} className="p-3 bg-white border-t border-slate-50 flex gap-2 shrink-0 pb-safe">
+
+      <form onSubmit={sendMessage} className="p-6 bg-card border-t border-border flex gap-3 shrink-0 pb-safe">
         <input 
-          disabled={!user}
-          type="text" 
-          value={newMessage} 
+          disabled={!user} type="text" value={newMessage} 
           onChange={(e) => setNewMessage(e.target.value)} 
-          placeholder="Secure transmission..." 
-          className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-3 text-xs font-semibold focus:ring-2 focus:ring-forest/5 outline-none disabled:opacity-30" 
+          placeholder="Transmit secure signal..." 
+          className="flex-1 bg-muted border border-border rounded-[1.5rem] px-6 py-4 text-xs font-bold italic outline-none focus:border-harvest transition-all text-foreground disabled:opacity-30 placeholder:opacity-30" 
         />
-        <button disabled={!user} type="submit" className="p-3 bg-forest text-white rounded-xl active:scale-95 shadow-lg shadow-forest/10 disabled:opacity-30">
-          <Send size={16} />
+        <button disabled={!user || !newMessage.trim()} type="submit" className="w-14 h-14 bg-forest dark:bg-harvest text-white rounded-2xl flex items-center justify-center active:scale-90 shadow-xl transition-all disabled:opacity-20">
+          <Send size={20} />
         </button>
       </form>
     </div>
@@ -210,27 +174,26 @@ export default function ChatWindow({
   if (isMobileDrawer) {
     return (
       <Sheet open={isOpen} onOpenChange={onClose}>
-        <SheetContent side="bottom" className="h-[85vh] p-0 rounded-t-[2.5rem] overflow-hidden border-none z-[200] bg-white">
-          <SheetHeader className="p-5 border-b border-slate-50 shrink-0 bg-white">
-            <SheetTitle className="flex items-center gap-3 text-forest text-left">
-              <div className="w-10 h-10 bg-forest text-white rounded-xl flex items-center justify-center font-bold text-sm shadow-lg ">{receiverName?.charAt(0)}</div>
+        <SheetContent side="bottom" className="h-[90vh] p-0 rounded-t-[3rem] overflow-hidden border-t-2 border-border z-[200] bg-background focus:outline-none">
+          <SheetHeader className="p-6 border-b border-border bg-card shrink-0">
+            <SheetTitle className="flex items-center gap-4 text-left">
+              <div className="w-12 h-12 bg-forest dark:bg-harvest text-white rounded-2xl flex items-center justify-center font-bold shadow-xl">{receiverName?.charAt(0)}</div>
               <div className="flex flex-col">
-                <span className="font-bold text-base leading-none mb-1 ">{receiverName}</span>
-                <span className="text-[8px] text-emerald-500 font-bold flex items-center gap-1">
-                   <Shield size={10} /> Encrypted Transmission
-                </span>
+                <span className="font-bold text-lg leading-none mb-1 italic ">{receiverName}</span>
+                <span className="text-[9px] text-emerald-500 font-black uppercase tracking-widest flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />E2EE Secured Signal</span>
               </div>
             </SheetTitle>
+            <button onClick={onClose} className="absolute right-6 top-8 p-2 bg-muted rounded-xl text-stone/40"><X size={20}/></button>
           </SheetHeader>
-          <div className="flex-1 h-full bg-white">{ChatContent}</div>
+          <div className="flex-1 h-full">{ChatUI}</div>
         </SheetContent>
       </Sheet>
     )
   }
 
   return (
-    <div className="flex flex-col h-full w-full bg-white shadow-2xl overflow-hidden border border-slate-100">
-      {ChatContent}
+    <div className="flex flex-col w-full max-h-[500px] md:max-h-[600px] bg-card shadow-2xl overflow-hidden border border-border rounded-[3rem] animate-in zoom-in duration-300">
+      {ChatUI}
     </div>
   )
 }
