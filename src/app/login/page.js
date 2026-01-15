@@ -1,5 +1,5 @@
 "use client"
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react' 
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { getWalletClient } from '@/utils/blockchain'
@@ -12,13 +12,20 @@ import {
 import { Button } from "@/components/ui/button"
 import { toast } from 'sonner'
 
-export default function Login() {
+export default function LoginPage() {
+  const { user, isInitialLoad } = useAuth()
   const router = useRouter()
-  const { supabase, authWithWallet } = useAuth() // Pakai authWithWallet dari context
+  const { supabase, authWithWallet } = useAuth() 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [walletLoading, setWalletLoading] = useState(false)
+  
+  useEffect(() => {
+    if (!isInitialLoad && user) {
+      router.push('/dashboard')
+    }
+  }, [user, isInitialLoad, router])
 
   const handleEmailLogin = async (e) => {
     e.preventDefault()
@@ -41,7 +48,6 @@ export default function Login() {
     if (error) toast.error(error.message)
   }
 
-  // REVISI LOGIC WALLET: Langsung tembak authWithWallet
   const handleWalletAuth = async () => {
     setWalletLoading(true)
     const toastId = toast.loading("Verifying Wallet Identity...")
@@ -49,7 +55,6 @@ export default function Login() {
       const walletClient = await getWalletClient()
       const [address] = await walletClient.getAddresses()
       
-      // Panggil logic Unified Auth (Login/Regis otomatis)
       const result = await authWithWallet(address)
 
       if (result.success) {
@@ -66,7 +71,6 @@ export default function Login() {
 
   return (
     <div className="h-screen w-screen bg-background text-foreground flex overflow-hidden font-raleway transition-colors duration-500">
-      {/* Visual Side - Desktop Only */}
       <div className="hidden lg:flex w-1/2 bg-forest dark:bg-card relative items-center justify-center p-12 border-r border-border/10">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
         <div className="relative z-10 space-y-8">
@@ -83,7 +87,6 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Form Side */}
       <div className="flex-1 flex flex-col justify-center p-6 md:p-12 lg:p-20 bg-background relative overflow-y-auto no-scrollbar">
         <div className="absolute top-8 right-8 flex items-center gap-4">
           <ThemeToggle />
@@ -95,7 +98,6 @@ export default function Login() {
             <p className="text-stone dark:text-stone/50 text-sm font-medium">Choose your gateway to the ecosystem.</p>
           </div>
 
-          {/* Social & Web3 Options */}
           <div className="grid gap-3">
              <Button 
                variant="outline" 

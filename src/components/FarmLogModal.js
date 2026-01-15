@@ -82,7 +82,7 @@ export default function FarmLogModal({ isOpen, onClose, user, products, supabase
               >
                 <option value="" className="font-normal opacity-50">Select Active SKU</option>
                 {products.map(p => (
-                  <option key={p.id} value={p.id} className="font-bold">{p.name}</option>
+                  <option key={p.id} value={p.id} className="dark:bg-slate-900 dark:text-white bg-white text-slate-900">{p.name}</option>
                 ))}
               </select>
               <Plus className="absolute right-4 top-1/2 -translate-y-1/2 text-stone/30 pointer-events-none" size={16} />

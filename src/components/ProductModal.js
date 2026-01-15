@@ -143,6 +143,7 @@ export default function ProductModal({ isOpen, onClose, user, supabase, onSucces
               <input type="file" ref={fileInputRef} onChange={handleImageUpload} className="hidden" accept="image/*" />
             </div>
           </div>
+
           <div className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-stone/40 dark:text-stone/50 uppercase tracking-widest ml-1 text-left">Commodity Name</label>
@@ -155,19 +156,25 @@ export default function ProductModal({ isOpen, onClose, user, supabase, onSucces
             </div>
             
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-stone/40 dark:text-stone/50 uppercase tracking-widest ml-1">Category</label>
-                <div className="relative">
-                  <select 
-                    value={formData.category} 
-                    onChange={e => setFormData({...formData, category: e.target.value})} 
-                    className="w-full px-6 py-4 rounded-2xl bg-muted border border-border appearance-none focus:border-harvest outline-none transition font-bold text-foreground cursor-pointer"
-                  >
-                    <option>Rice</option><option>Vegetables</option><option>Fruits</option><option>Spices</option><option>Others</option>
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-stone/40 pointer-events-none" size={16} />
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-stone/40 dark:text-stone/50 uppercase tracking-widest ml-1">
+                    Category
+                  </label>
+                  <div className="relative">
+                    <select 
+                      value={formData.category} 
+                      onChange={e => setFormData({...formData, category: e.target.value})} 
+                      className="w-full px-6 py-4 rounded-2xl bg-muted border border-border appearance-none focus:border-harvest outline-none transition font-bold text-foreground cursor-pointer dark:bg-card"
+                    >
+                      <option value="Rice" className="dark:bg-slate-900 dark:text-white bg-white text-slate-900">Rice</option>
+                      <option value="Vegetables" className="dark:bg-slate-900 dark:text-white bg-white text-slate-900">Vegetables</option>
+                      <option value="Fruits" className="dark:bg-slate-900 dark:text-white bg-white text-slate-900">Fruits</option>
+                      <option value="Spices" className="dark:bg-slate-900 dark:text-white bg-white text-slate-900">Spices</option>
+                      <option value="Others" className="dark:bg-slate-900 dark:text-white bg-white text-slate-900">Others</option>
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-stone/40 pointer-events-none" size={16} />
+                  </div>
                 </div>
-              </div>
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-stone/40 dark:text-stone/50 uppercase tracking-widest ml-1">Available Stock (kg)</label>
@@ -217,7 +224,7 @@ export default function ProductModal({ isOpen, onClose, user, supabase, onSucces
               className="w-full md:flex-[2] h-16 bg-forest dark:bg-harvest text-white font-bold text-sm tracking-[0.2em] uppercase shadow-2xl shadow-forest/20 dark:shadow-harvest/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3"
             >
               {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-              {initialData ? 'Update Ledger' : 'Authorize Asset'}
+              <span>{initialData ? 'Update Ledger' : 'Authorize Asset'}</span>
             </Button>
           </div>
         </form>

@@ -20,7 +20,6 @@ export const publicClient = createPublicClient({
   transport: http(process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL || "https://sepolia-rollup.arbitrum.io/rpc"),
 })
 
-// Fungsi baru untuk ambil rate pasar (ETH -> USD -> IDR)
 export const getMarketRates = async () => {
   try {
     const ethRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
@@ -45,19 +44,49 @@ export const getMarketRates = async () => {
 export const getWalletClient = async () => {
   const eth = typeof window !== "undefined" ? window.ethereum : null;
   if (!eth) throw new Error("METAMASK_NOT_FOUND");
+  
   try {
     await eth.request({ method: 'eth_requestAccounts' });
+
+    const currentChainId = await eth.request({ method: 'eth_chainId' });
+    const targetChainId = `0x${arbitrumSepolia.id.toString(16)}`;
+
+    if (currentChainId !== targetChainId) {
+      try {
+        await eth.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: targetChainId }],
+        });
+      } catch (switchError) {
+        if (switchError.code === 4902) {
+          await eth.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: targetChainId,
+              chainName: 'Arbitrum Sepolia',
+              nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+              rpcUrls: ['https://sepolia-rollup.arbitrum.io/rpc'],
+              blockExplorerUrls: ['https://sepolia.arbiscan.io/']
+            }],
+          });
+        } else {
+          throw switchError;
+        }
+      }
+    }
+
     const walletClient = createWalletClient({
       chain: arbitrumSepolia,
       transport: custom(eth),
     });
+    
     return walletClient;
   } catch (error) {
-    throw new Error("USER_REJECTED_CONNECTION");
+    console.error("Wallet switch/connection failed", error);
+    throw new Error(error.message || "USER_REJECTED_CONNECTION");
   }
 }
 
-// Checkout sekarang menerima priceInEth langsung tanpa perlu hitung dari USD lagi
 export const checkout = async (items, isWithNego = false, proposedPriceEth = null) => {
   const walletClient = await getWalletClient()
   const [account] = await walletClient.getAddresses()
@@ -66,7 +95,6 @@ export const checkout = async (items, isWithNego = false, proposedPriceEth = nul
   const skus = items.map(item => item.sku)
    
   const amounts = items.map(item => {
-    // Karena basisnya sudah ETH, kita langsung parse
     return parseEther(parseFloat(item.priceInEth).toFixed(18)); 
   })
   
