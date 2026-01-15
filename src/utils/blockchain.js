@@ -14,11 +14,14 @@ import abiData from "./escrowAbi.json"
 import { toast } from "sonner" 
 
 const abi = abiData.abi || abiData 
-export const contractAddress = process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS
+
+export const contractAddress = process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS || "0x86d9A6912c36DE8c837603A3dd23718De4b79341"
+
+const rpcUrl = process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL || "https://sepolia-rollup.arbitrum.io/rpc"
 
 export const publicClient = createPublicClient({
   chain: arbitrumSepolia,
-  transport: http(process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL || "https://sepolia-rollup.arbitrum.io/rpc"),
+  transport: http(rpcUrl),
 })
 
 export const getMarketRates = async () => {
@@ -76,6 +79,11 @@ export const getWalletClient = async () => {
 }
 
 export const checkout = async (items) => {
+  if (!contractAddress || !contractAddress.startsWith('0x')) {
+    toast.error("Environment Error: Contract Address Missing");
+    throw new Error("Missing Contract Address");
+  }
+
   const walletClient = await getWalletClient()
   const [account] = await walletClient.getAddresses()
   
@@ -85,14 +93,17 @@ export const checkout = async (items) => {
   const totalValueWei = amounts.reduce((acc, curr) => acc + curr, 0n);
 
   try {
+    const gasPrice = await publicClient.getGasPrice();
+
     const hash = await walletClient.writeContract({
-      address: contractAddress,
+      address: getAddress(contractAddress), 
       abi,
       functionName: "checkout",
       args: [sellers, amounts, skus],
       value: totalValueWei,
       account,
-      gas: 1000000n,
+      gas: 1500000n, 
+      maxPriorityFeePerGas: gasPrice / 2n, 
     });
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash })
@@ -114,6 +125,8 @@ export const checkout = async (items) => {
     return { hash, blockchainIds }
   } catch (error) {
     console.error("Critical Execution Error:", error);
+    const message = error.shortMessage || error.message || "Internal RPC Error";
+    toast.error(`Protocol Reverted: ${message}`);
     throw error;
   }
 }
