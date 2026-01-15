@@ -9,7 +9,7 @@ import {
   TrendingUp, Package, ShoppingBag, 
   ArrowUpRight, Loader2, Calendar, Users, 
   Activity, MapPin, Navigation, Coins, Globe, Layers,
-  ShieldCheck
+  ShieldCheck, ArrowRight
 } from 'lucide-react'
 import { getMarketRates } from '@/utils/blockchain'
 import { Badge } from '@/components/ui/badge'
