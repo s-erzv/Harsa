@@ -11,6 +11,7 @@ import {
 } from "viem"
 import { arbitrumSepolia } from "viem/chains" 
 import abiData from "./escrowAbi.json"
+import { toast } from "sonner" 
 
 const abi = abiData.abi || abiData 
 export const contractAddress = process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS
@@ -25,18 +26,11 @@ export const getMarketRates = async () => {
     const ethRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
     const ethData = await ethRes.json();
     const ethToUsd = ethData["ethereum"].usd;
-
     const idrRes = await fetch("https://api.frankfurter.app/latest?from=USD&to=IDR");
     const idrData = await idrRes.json();
     const usdToIdr = idrData.rates.IDR;
-
-    return {
-      ethToUsd,
-      ethToIdr: ethToUsd * usdToIdr,
-      usdToIdr
-    };
+    return { ethToUsd, ethToIdr: ethToUsd * usdToIdr, usdToIdr };
   } catch (error) {
-    console.error("Rates unavailable", error);
     return null;
   }
 };
@@ -47,7 +41,6 @@ export const getWalletClient = async () => {
   
   try {
     await eth.request({ method: 'eth_requestAccounts' });
-
     const currentChainId = await eth.request({ method: 'eth_chainId' });
     const targetChainId = `0x${arbitrumSepolia.id.toString(16)}`;
 
@@ -69,48 +62,39 @@ export const getWalletClient = async () => {
               blockExplorerUrls: ['https://sepolia.arbiscan.io/']
             }],
           });
-        } else {
-          throw switchError;
         }
       }
     }
 
-    const walletClient = createWalletClient({
+    return createWalletClient({
       chain: arbitrumSepolia,
       transport: custom(eth),
     });
-    
-    return walletClient;
   } catch (error) {
-    console.error("Wallet switch/connection failed", error);
-    throw new Error(error.message || "USER_REJECTED_CONNECTION");
+    throw new Error("USER_REJECTED_CONNECTION");
   }
 }
 
-export const checkout = async (items, isWithNego = false, proposedPriceEth = null) => {
+export const checkout = async (items) => {
   const walletClient = await getWalletClient()
   const [account] = await walletClient.getAddresses()
   
   const sellers = items.map(item => getAddress(item.sellerAddress))
   const skus = items.map(item => item.sku)
-   
-  const amounts = items.map(item => {
-    return parseEther(parseFloat(item.priceInEth).toFixed(18)); 
-  })
-  
+  const amounts = items.map(item => parseEther(parseFloat(item.priceInEth).toFixed(18)))
   const totalValueWei = amounts.reduce((acc, curr) => acc + curr, 0n);
 
   try {
-    const { request } = await publicClient.simulateContract({
+    const hash = await walletClient.writeContract({
       address: contractAddress,
       abi,
       functionName: "checkout",
       args: [sellers, amounts, skus],
       value: totalValueWei,
       account,
+      gas: 1000000n,
     });
 
-    const hash = await walletClient.writeContract(request);
     const receipt = await publicClient.waitForTransactionReceipt({ hash })
     
     const blockchainIds = []
@@ -124,15 +108,16 @@ export const checkout = async (items, isWithNego = false, proposedPriceEth = nul
             seller: decoded.args.seller,
             amount: decoded.args.amount.toString()
           })
-        } catch (e) { console.error("Decode failed", e) }
+        } catch (e) {}
       }
     }
-
     return { hash, blockchainIds }
   } catch (error) {
+    console.error("Critical Execution Error:", error);
     throw error;
   }
 }
+
 
 export const confirmDelivery = async (blockchainTxId) => {
   const walletClient = await getWalletClient()

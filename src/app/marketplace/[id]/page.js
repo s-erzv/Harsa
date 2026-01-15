@@ -31,7 +31,7 @@ export default function ProductDetail() {
   const [rates, setRates] = useState(null)
   const [currency, setCurrency] = useState('USD')
   const [activities, setActivities] = useState([])
-  const [farmLogs, setFarmLogs] = useState([]) // State buat Farm Logs
+  const [farmLogs, setFarmLogs] = useState([])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -63,44 +63,46 @@ export default function ProductDetail() {
     if (id) fetchData()
   }, [id, supabase])
 
-  const handleProcessPurchase = async () => {
-    if (!product?.profiles?.wallet_address) return toast.error("Invalid seller node")
-    if (buyAmount > product.stock_kg) return toast.error("Insufficient supply")
-    if (!user) return toast.error("Please login first")
+const handleProcessPurchase = async () => {
+  if (!product?.profiles?.wallet_address) return toast.error("Invalid seller node")
+  if (buyAmount > product.stock_kg) return toast.error("Insufficient supply")
+  if (!user) return toast.error("Please login first")
 
-    setIsProcessing(true);
-    const toastId = toast.loading("Executing smart contract...");
-    
-    try {
-        const totalEthToPay = (product.price_per_kg * buyAmount).toString();
-        const { hash, blockchainIds } = await checkout([{
-            sellerAddress: product.profiles.wallet_address,
-            priceInEth: totalEthToPay,
-            sku: product.id            
-        }], false, null);
+  setIsProcessing(true);
+  const toastId = toast.loading("Executing smart contract...");
+  
+  try {
+      const totalEthValue = (Number(product.price_per_kg) * Number(buyAmount));
+      
+      const { hash, blockchainIds } = await checkout([{
+          sellerAddress: product.profiles.wallet_address,
+          priceInEth: totalEthValue.toString(),
+          sku: product.id            
+      }], false, null);
 
-        const { error } = await supabase.rpc('handle_buy_product', {
-            p_transaction_id: crypto.randomUUID(), 
-            p_product_id: product.id,
-            p_amount_kg: buyAmount,
-            p_blockchain_id: parseInt(blockchainIds[0].txId), 
-            p_tx_hash: hash,
-            p_buyer_id: user.id,
-            p_seller_id: product.seller_id,
-            p_total_price: Number(totalEthToPay),
-            p_amount_paid: Number(totalEthToPay),
-            p_status: 'AWAITING_DELIVERY'
-        });
+      const { error } = await supabase.rpc('handle_buy_product', {
+          p_transaction_id: crypto.randomUUID(), 
+          p_product_id: product.id,
+          p_amount_kg: buyAmount,
+          p_blockchain_id: parseInt(blockchainIds[0].txId), 
+          p_tx_hash: hash,
+          p_buyer_id: user.id,
+          p_seller_id: product.seller_id,
+          p_total_price: totalEthValue,
+          p_amount_paid: totalEthValue,
+          p_status: 'AWAITING_DELIVERY'
+      });
 
-        if (error) throw error;
-        toast.success("Transaction verified!", { id: toastId });
-        router.push('/dashboard/transaksi');
-    } catch (err) {
-        toast.error("Execution failed: " + (err.shortMessage || err.message), { id: toastId });
-    } finally {
-        setIsProcessing(false);
-    }
+      if (error) throw error;
+      toast.success("Transaction verified!", { id: toastId });
+      router.push('/dashboard/transaksi');
+  } catch (err) {
+      console.error("Purchase Error:", err);
+      toast.error("Execution failed: " + (err.shortMessage || err.message), { id: toastId });
+  } finally {
+      setIsProcessing(false);
   }
+}
 
   if (loading || !product) return (
     <div className="h-[100dvh] flex items-center justify-center bg-background">
