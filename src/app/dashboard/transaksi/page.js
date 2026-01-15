@@ -4,7 +4,8 @@ import { useAuth } from '@/context/AuthContext'
 import { 
   Package, Loader2, MessageSquare, X, Search, 
   MapPin, CheckCircle2, ShoppingBag, ArrowRight, Filter, Truck,
-  Star, Send, Coins, Globe, Layers, Navigation
+  Star, Send, Coins, Globe, Layers, Navigation,
+  ShieldCheck
 } from 'lucide-react'
 import ChatWindow from '@/components/ChatWindow'
 import { getMarketRates } from '@/utils/blockchain'
