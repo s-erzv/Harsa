@@ -14,9 +14,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [isInitialLoad, setIsInitialLoad] = useState(true)
-  const authInitialized = useRef(false) // Lock buat inisialisasi
 
-  // Fetch profile dengan error handling yang lebih silent (puitis)
   const fetchProfile = useCallback(async (userId) => {
     if (!userId) return null
     const { data } = await supabase
@@ -33,48 +31,29 @@ export const AuthProvider = ({ children }) => {
   }, [])
 
   useEffect(() => {
-    if (authInitialized.current) return
-    authInitialized.current = true
-
-    const initializeAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.user) {
-          setUser(session.user)
-          await fetchProfile(session.user.id)
-        }
-      } finally {
-        setIsInitialLoad(false)
-      }
-    }
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       const currentUser = session?.user ?? null
       
-      // Cek kalau bener-bener ada perubahan user biar gak re-fetch terus pas pindah tab
-      if (currentUser?.id !== user?.id) {
-        setUser(currentUser)
-        if (currentUser) {
-          await fetchProfile(currentUser.id)
-        } else {
-          setProfile(null)
-        }
+      setUser(currentUser)
+
+      if (currentUser) {
+        fetchProfile(currentUser.id).finally(() => {
+          setIsInitialLoad(false)
+        })
+      } else {
+        setProfile(null)
+        setIsInitialLoad(false)
       }
-      
-      // Set loading false kalau ini trigger pertama
-      setIsInitialLoad(false)
     })
 
-    initializeAuth()
     return () => subscription.unsubscribe()
-  }, [fetchProfile, user?.id])
+  }, [fetchProfile])
 
   const authWithWallet = async (address) => {
     const cleanAddress = address.toLowerCase()
     const dummyEmail = `${cleanAddress}@harsa.network`
     const walletPassword = `${cleanAddress}_harsa_secure`
 
-    // Coba login dulu
     const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
       email: dummyEmail,
       password: walletPassword,
@@ -85,7 +64,6 @@ export const AuthProvider = ({ children }) => {
       return { success: true, user: signInData.user, profile: p }
     }
 
-    // Kalau gagal (user baru), langsung daftar
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email: dummyEmail,
       password: walletPassword,
@@ -95,7 +73,6 @@ export const AuthProvider = ({ children }) => {
     if (signUpError) throw signUpError
 
     if (signUpData.user) {
-      // Tunggu profile dibuat via trigger (jika ada) atau paksa update
       const { data: updatedProfile } = await supabase
         .from('profiles')
         .update({ 

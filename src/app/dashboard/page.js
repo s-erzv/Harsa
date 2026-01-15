@@ -84,7 +84,52 @@ export default function DashboardPage() {
     }
   }, [user, supabase])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  const fetchEssentialData = useCallback(async () => {
+    if (!user) return
+    try {
+      const [prof, prod, earn, logs] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', user.id).single(),
+        supabase.from('products').select('*').eq('seller_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('farmer_earnings').select('*').eq('seller_id', user.id).maybeSingle(),
+        supabase.from('farm_logs').select('*, products!inner(seller_id)').eq('products.seller_id', user.id).limit(5).order('created_at', { ascending: false }),
+      ])
+      
+      setData(prev => ({ 
+        ...prev,
+        profile: prof.data, 
+        products: prod.data || [], 
+        earnings: earn.data || { total_earned: 0, total_locked: 0 }, 
+        logs: logs.data || []
+      }))
+    } catch (err) {
+      console.error("Essential Sync Error:", err)
+    } finally {
+      // Hentikan loading screen utama setelah data penting didapat
+      setLoading(false) 
+    }
+  }, [user, supabase])
+
+  // Tahap 2: Ambil data pasar & blockchain secara background (Lambat)
+  const fetchMarketData = useCallback(async () => {
+    try {
+      // Coba ambil dari cache sederhana jika ingin lebih cepat
+      const [agriData, marketRates] = await Promise.all([
+        fetchAgriPrices(),
+        getMarketRates()
+      ])
+      setData(prev => ({ ...prev, prices: agriData }))
+      setRates(marketRates)
+    } catch (err) {
+      console.error("Market Data Error:", err)
+    }
+  }, [])
+
+  useEffect(() => { 
+    if (user) {
+      fetchEssentialData()
+      fetchMarketData() 
+    }
+  }, [user, fetchEssentialData, fetchMarketData])
 
   if (loading) return (
     <div className="h-[100dvh] flex flex-col items-center justify-center bg-background">
