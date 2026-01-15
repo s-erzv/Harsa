@@ -23,6 +23,7 @@ export default function ChatWindow({
   const [newMessage, setNewMessage] = useState('')
   const [loading, setLoading] = useState(true)
   const scrollRef = useRef()
+  const channelRef = useRef(null)
 
   const getSecurityKey = useCallback(() => {
     if (!user?.id || !receiverId) return CHAT_SALT;
@@ -32,10 +33,11 @@ export default function ChatWindow({
 
   const decryptMessage = useCallback((ciphertext) => {
     try {
+      if (!ciphertext) return "";
       const key = getSecurityKey();
       const bytes = CryptoJS.AES.decrypt(ciphertext, key);
       const originalText = bytes.toString(CryptoJS.enc.Utf8);
-      return originalText || "[Secure Transmission]";
+      return originalText || "[Encrypted Signal]";
     } catch (e) {
       return "[Encrypted Signal]";
     }
@@ -58,7 +60,12 @@ export default function ChatWindow({
           .order('created_at', { ascending: true });
         
         if (error) throw error;
-        setMessages((data || []).map(msg => ({ ...msg, content: decryptMessage(msg.content) })));
+        
+        const decryptedData = (data || []).map(msg => ({ 
+          ...msg, 
+          content: decryptMessage(msg.content) 
+        }));
+        setMessages(decryptedData);
       } catch (err) {
         console.error("Sync Error:", err.message);
       } finally {
@@ -68,17 +75,32 @@ export default function ChatWindow({
 
     fetchMessages();
 
-    const channel = supabase.channel(`room_${receiverId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+    // Perbaikan Realtime Logic: Gunakan ID unik untuk channel agar tidak 409
+    const roomKey = [user.id, receiverId].sort().join('_');
+    channelRef.current = supabase.channel(`chat_${roomKey}`)
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'messages' 
+      }, payload => {
         const msg = payload.new;
         const isRelevant = (msg.sender_id === user.id && msg.receiver_id === receiverId) || 
                            (msg.sender_id === receiverId && msg.receiver_id === user.id);
+        
         if (isRelevant) {
-          setMessages(prev => prev.find(m => m.id === msg.id) ? prev : [...prev, { ...msg, content: decryptMessage(msg.content) }]);
+          setMessages(prev => {
+            const exists = prev.some(m => m.id === msg.id);
+            if (exists) return prev;
+            return [...prev, { ...msg, content: decryptMessage(msg.content) }];
+          });
         }
       }).subscribe();
 
-    return () => { supabase.removeChannel(channel) };
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+      }
+    };
   }, [user?.id, receiverId, decryptMessage, supabase]);
 
   useEffect(() => {
@@ -86,17 +108,42 @@ export default function ChatWindow({
   }, [messages]);
 
   const sendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !user) return;
-    const rawText = newMessage;
-    setNewMessage('');
-    try {
-      const { error } = await supabase.from('messages').insert({ 
-        sender_id: user.id, receiver_id: receiverId, content: encryptMessage(rawText), transaction_id: transactionId 
-      });
-      if (error) throw error;
+  e.preventDefault();
+  if (!newMessage.trim() || !user) return;
+
+  const rawText = newMessage;
+  const encryptedContent = encryptMessage(rawText);
+
+  const cleanTxId = transactionId && transactionId.length > 0 ? transactionId : null;
+
+  setNewMessage('');
+
+  try {
+    const { data, error } = await supabase.from('messages').insert({ 
+      sender_id: user.id, 
+      receiver_id: receiverId, 
+      content: encryptedContent, 
+      transaction_id: null, 
+      is_read: false 
+    }).select().single();
+
+    if (error) {
+      if (error.code === '23503') {
+         console.error("FK Violation: transaction_id invalid. Mengirim ulang tanpa ID...");
+         await supabase.from('messages').insert({ 
+            sender_id: user.id, 
+            receiver_id: receiverId, 
+            content: encryptedContent,
+            transaction_id: null 
+         });
+      } else {
+         throw error;
+      }
+    }
+
     } catch (err) {
-      toast.error("Signal failed");
+      console.error("Send Error:", err);
+      toast.error("Transmission failed. Check node status.");
       setNewMessage(rawText);
     }
   };
@@ -108,7 +155,7 @@ export default function ChatWindow({
           <div className="w-16 h-16 bg-muted rounded-[2rem] border border-border flex items-center justify-center mb-6 shadow-2xl">
             <Lock className="text-harvest" size={32} />
           </div>
-          <h3 className="text-2xl font-bold tracking-tighter italic italic">Signal Locked<span className="text-harvest">.</span></h3>
+          <h3 className="text-2xl font-bold tracking-tighter italic">Signal Locked<span className="text-harvest">.</span></h3>
           <p className="text-stone/50 text-xs mb-8 leading-relaxed max-w-[200px]">Sign in to authorize end-to-end encrypted communication.</p>
           <Link href="/login"><Button className="bg-forest dark:bg-harvest text-white rounded-2xl h-14 px-10 font-bold uppercase tracking-widest text-[10px]">INITIALIZE IDENTITY</Button></Link>
         </div>
@@ -192,7 +239,7 @@ export default function ChatWindow({
   }
 
   return (
-    <div className="flex flex-col w-full max-h-[500px] md:max-h-[600px] bg-card shadow-2xl overflow-hidden border border-border rounded-[3rem] animate-in zoom-in duration-300">
+    <div className="flex flex-col w-full h-full max-h-[600px] bg-card shadow-2xl overflow-hidden border border-border rounded-[3rem] animate-in zoom-in duration-300">
       {ChatUI}
     </div>
   )
